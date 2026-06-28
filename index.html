@@ -185,6 +185,12 @@
   .seg{display:flex;background:var(--soft);border-radius:11px;padding:3px;gap:3px}
   .seg button{flex:1;border:none;background:none;padding:9px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
   .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
+  .onb{position:fixed;inset:0;z-index:80;background:var(--bg);overflow-y:auto;padding:calc(30px + var(--safe-top)) 20px calc(28px + var(--safe-bot));display:none}
+  .onb.show{display:block}
+  .onb-card{max-width:460px;margin:0 auto}
+  .onb-emoji{font-size:42px;text-align:center}
+  .onb h2{font-size:24px;font-weight:740;letter-spacing:-.4px;text-align:center;margin:10px 0 6px}
+  .onb-sub{font-size:14px;color:var(--muted);text-align:center;line-height:1.5;margin:0 0 14px}
 </style>
 </head>
 <body>
@@ -487,11 +493,38 @@
   </div>
 </div>
 
+<!-- ONBOARDING -->
+<div class="onb" id="onb">
+  <div class="onb-card">
+    <div class="onb-emoji">📊</div>
+    <h2>Welcome to FoodLog</h2>
+    <p class="onb-sub">A few quick details to personalize your targets. Everything stays private on your device.</p>
+    <label class="fl">Gender</label>
+    <select class="f" id="onbGender"><option value="">Select…</option><option value="male">Male</option><option value="female">Female</option></select>
+    <div class="row2">
+      <div><label class="fl">Age</label><input class="f" id="onbAge" type="number" inputmode="numeric" placeholder="e.g. 35"></div>
+      <div><label class="fl">Height</label><div style="display:flex;gap:6px"><input class="f" id="onbHft" type="number" inputmode="numeric" placeholder="ft"><input class="f" id="onbHin" type="number" inputmode="numeric" placeholder="in"></div></div>
+    </div>
+    <div class="row2">
+      <div><label class="fl">Current weight (lb)</label><input class="f" id="onbCur" type="number" inputmode="decimal" placeholder="lb"></div>
+      <div><label class="fl">Goal weight (lb)</label><input class="f" id="onbGoal" type="number" inputmode="decimal" placeholder="optional"></div>
+    </div>
+    <label class="fl">Activity level</label>
+    <select class="f" id="onbAct"><option value="sedentary">Sedentary</option><option value="light" selected>Lightly active</option><option value="moderate">Moderately active</option><option value="active">Very active</option></select>
+    <div class="set-row" style="border:none;padding:16px 0 2px">
+      <div><div class="l">On a GLP-1 medication?</div><div class="d">Adds tailored resources &amp; coaching</div></div>
+      <div class="toggle" id="onbGlp1"><i></i></div>
+    </div>
+    <button class="btn primary" id="onbGo" style="margin-top:14px">Get started</button>
+    <div class="hint" id="onbErr" style="color:var(--danger);text-align:center;min-height:16px"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=18;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=19;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
@@ -501,6 +534,7 @@ const DEFAULTS = {
   deleted:[],        // tombstones: ids of removed log entries (for sync)
   updatedAt:0,       // last local change (ms) — drives sync merge
   insight:null,      // cached AI weekly insight {text, week, ts} (device-local)
+  onboarded:false,   // first-run NUX flag (device-local)
   sync:{enabled:false, passphrase:"", lastSync:0, lastPushedAt:0},
 };
 const KEY="foodlog.v1";
@@ -509,7 +543,6 @@ function load(){
   try{const r=JSON.parse(localStorage.getItem(KEY));if(r&&r.settings)return migrate(r);}catch(e){}
   // seed with what Daniel told us
   const seed=structuredClone(DEFAULTS);
-  seed.weights=[{date:today(),lb:215}];
   return seed;
 }
 function migrate(r){
@@ -518,6 +551,7 @@ function migrate(r){
   r.settings.reminders.times=Object.assign({lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}, r.settings.reminders.times||{});
   r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0,lastPushedAt:0}, r.sync||{});
   r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{}; r.insight=r.insight||null;
+  r.onboarded = (r.onboarded===undefined) ? true : r.onboarded;
   const CAT_MAP={Protein:"Meat",Carbs:"Grains"};                 // migrate old macro-categories to food types
   (r.log||[]).forEach(x=>{ if(CAT_MAP[x.cat]) x.cat=CAT_MAP[x.cat]; });
   return r;
@@ -890,7 +924,7 @@ async function deriveKey(pass){
   return crypto.subtle.deriveKey({name:"PBKDF2",salt:_enc.encode("foodlog-enc-v1"),iterations:120000,hash:"SHA-256"},
     base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
 }
-function syncable(){ const s=structuredClone(S); delete s.sync; delete s.insight; if(s.settings){ delete s.settings.apiKey; delete s.settings.reminders; } return s; }
+function syncable(){ const s=structuredClone(S); delete s.sync; delete s.insight; delete s.onboarded; if(s.settings){ delete s.settings.apiKey; delete s.settings.reminders; } return s; }
 async function encryptState(obj,key){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,_enc.encode(JSON.stringify(obj)));
@@ -913,7 +947,7 @@ function mergeRemote(r){
   settings.reminders=S.settings.reminders;                                           // reminders are device-local
   const water=Object.assign({}, older.water||{}, newer.water||{});
   return {settings, log, weights:Object.values(wd), water, deleted:[...deleted],
-          updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync, insight:S.insight};
+          updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync, insight:S.insight, onboarded:S.onboarded};
 }
 function setSyncStatus(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }
 function rerenderCurrent(){
@@ -1181,10 +1215,28 @@ let tT;
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tT); tT=setTimeout(()=>t.classList.remove("show"),1700); }
 
 /* ---------- init ---------- */
+let _onbGlp1=false;
+$("#onbGlp1").onclick=()=>{ _onbGlp1=!_onbGlp1; $("#onbGlp1").classList.toggle("on",_onbGlp1); };
+function showOnboarding(){ if(!S.onboarded) $("#onb").classList.add("show"); }
+$("#onbGo").onclick=()=>{
+  const g=$("#onbGender").value, age=parseInt($("#onbAge").value), ft=parseInt($("#onbHft").value), inch=parseInt($("#onbHin").value)||0, cur=parseFloat($("#onbCur").value), goal=parseFloat($("#onbGoal").value), act=$("#onbAct").value;
+  const err=m=>{ $("#onbErr").textContent=m; };
+  if(!g) return err("Please pick a gender (for the calorie estimate).");
+  if(!age||age<13||age>100) return err("Enter a valid age.");
+  if(!ft) return err("Enter your height.");
+  if(!cur) return err("Enter your current weight.");
+  S.settings.gender=g; S.settings.age=age; S.settings.heightIn=ft*12+inch;
+  S.settings.startWeight=cur; if(!isNaN(goal)) S.settings.goalWeight=goal;
+  S.settings.activity=act; S.settings.glp1=_onbGlp1;
+  S.weights=[{date:today(),lb:cur}];
+  const r=computeIntake(); if(r){ S.settings.calTarget=r.moderate; S.settings.proTarget=Math.round(cur*0.7); }
+  S.onboarded=true; save();
+  $("#onb").classList.remove("show"); renderToday(); toast("You’re all set!");
+};
 function applyTheme(){ const t=S.settings.theme||"auto"; const r=document.documentElement; if(t==="auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme",t); }
 document.querySelectorAll("#themeSeg button").forEach(b=>b.onclick=()=>{ S.settings.theme=b.dataset.theme; save(); applyTheme(); renderSettings(); });
 applyTheme();
-buildCats(); renderToday();
+buildCats(); renderToday(); showOnboarding();
 if(S.sync && S.sync.enabled){ syncNow(false); startPolling(); }
 document.addEventListener("visibilitychange",()=>{
   if(!(S.sync && S.sync.enabled)) return;
