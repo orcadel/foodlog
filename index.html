@@ -189,8 +189,7 @@
         <div class="ring">
           <svg width="128" height="128" viewBox="0 0 128 128">
             <circle cx="64" cy="64" r="56" fill="none" stroke="#eef0f3" stroke-width="13"/>
-            <circle id="ringFill" cx="64" cy="64" r="56" fill="none" stroke="var(--accent)" stroke-width="13"
-                    stroke-linecap="round" stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+            <g id="ringSegs"></g>
           </svg>
           <div class="center">
             <div class="big" id="ringNum">0</div>
@@ -211,6 +210,7 @@
         <div class="chip-macro"><div class="v" id="mFat">0g</div><div class="k">Fat</div></div>
         <div class="chip-macro"><div class="v" id="mItems">0</div><div class="k">Items</div></div>
       </div>
+      <div id="ringLegend" style="display:flex;flex-wrap:wrap;gap:9px 14px;margin-top:13px"></div>
     </div>
 
     <div class="card" id="waterCard">
@@ -505,13 +505,37 @@ function renderToday(){
   const fat=items.reduce((a,x)=>a+(+x.fat||0),0);
   const tgt=S.settings.calTarget, proT=S.settings.proTarget;
 
-  // ring
+  // ring — segmented by food category
   const C=2*Math.PI*56;
-  const pct=Math.min(eaten/tgt,1);
-  const fill=$("#ringFill");
-  fill.setAttribute("stroke-dasharray", C);
-  fill.setAttribute("stroke-dashoffset", C*(1-pct));
-  fill.setAttribute("stroke", eaten>tgt?"var(--danger)":"var(--accent)");
+  const cats={}; CATS.forEach(c=>cats[c]=0);
+  items.forEach(x=>{ const c=CATS.includes(x.cat)?x.cat:"Carbs"; cats[c]+=(+x.cal||0); });
+  const present=CATS.filter(c=>cats[c]>0);
+  const gap=present.length>1?1.5:0;
+  const segHost=$("#ringSegs"); segHost.innerHTML="";
+  let acc=0;
+  CATS.forEach(c=>{
+    const v=cats[c]; if(v<=0) return;
+    const start=(acc/tgt)*C; let arc=(v/tgt)*C;
+    if(start<C){
+      if(start+arc>C) arc=C-start;
+      const draw=Math.max(0.5, arc-gap);
+      const cir=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      cir.setAttribute("cx",64); cir.setAttribute("cy",64); cir.setAttribute("r",56);
+      cir.setAttribute("fill","none"); cir.setAttribute("stroke-width",13);
+      cir.setAttribute("stroke","var(--cat-"+c+")");
+      cir.setAttribute("stroke-dasharray",draw+" "+(C-draw));
+      cir.setAttribute("stroke-dashoffset",C-start);
+      segHost.appendChild(cir);
+    }
+    acc+=v;
+  });
+  const leg=$("#ringLegend"); leg.innerHTML="";
+  present.forEach(c=>{
+    const el=document.createElement("span");
+    el.style.cssText="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)";
+    el.innerHTML='<span style="width:9px;height:9px;border-radius:50%;background:var(--cat-'+c+')"></span>'+c+' '+Math.round(cats[c]);
+    leg.appendChild(el);
+  });
   $("#ringNum").textContent = eaten;
   $("#sTarget").textContent = tgt;
   const rem=tgt-eaten;

@@ -1,5 +1,5 @@
 /* FoodLog service worker — network-first for fresh updates, cache fallback for offline. */
-const CACHE = "foodlog-v5";
+const CACHE = "foodlog-v6";
 const ASSETS = [
   "./", "./index.html", "./manifest.json",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"
