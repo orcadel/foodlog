@@ -176,6 +176,8 @@
   .tc-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);font-weight:720;margin-bottom:10px}
   .tc-body{font-size:16px;line-height:1.6;color:var(--ink)}
   .tc-close{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-weight:620;padding:8px;cursor:pointer;font-size:15px}
+  .rem-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 2px 6px 14px;color:var(--muted);font-size:14px}
+  .timei{width:auto;min-width:92px;padding:8px 10px;text-align:left}
 </style>
 </head>
 <body>
@@ -381,10 +383,17 @@
       </div>
       <div id="remWrap">
         <div class="set-row"><div class="l">Meal check-ins</div><div class="toggle" id="remMeals"><i></i></div></div>
+        <div class="rem-sub"><span>Lunch</span><input type="time" id="timeLunch" class="set-input timei"></div>
+        <div class="rem-sub"><span>Dinner</span><input type="time" id="timeDinner" class="set-input timei"></div>
         <div class="set-row"><div class="l">Hydration</div><div class="toggle" id="remWater"><i></i></div></div>
+        <div class="rem-sub"><span>Time</span><input type="time" id="timeWater" class="set-input timei"></div>
         <div class="set-row"><div class="l">Morning weigh-in</div><div class="toggle" id="remWeighin"><i></i></div></div>
+        <div class="rem-sub"><span>Time</span><input type="time" id="timeWeighin" class="set-input timei"></div>
         <div class="set-row"><div class="l">Weekly recap</div><div class="toggle" id="remWeekly"><i></i></div></div>
-        <div class="hint">Local times: weigh-in 6:45am · lunch 12:30pm · hydration 2pm · dinner 7pm · weekly recap Sun 6pm.</div>
+        <div class="rem-sub"><span>Day &amp; time</span><span style="display:flex;gap:6px">
+          <select id="dayWeekly" class="set-input timei" style="min-width:auto;width:auto"><option>Sun</option><option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option><option>Fri</option><option>Sat</option></select>
+          <input type="time" id="timeWeekly" class="set-input timei"></span></div>
+        <div class="hint">Reminders fire at your local time (to the nearest 15 minutes).</div>
         <div style="height:8px"></div>
         <button class="btn ghost" id="btnTestRem">Send a test notification</button>
         <div class="camstatus" id="remStatus" style="text-align:left"></div>
@@ -471,10 +480,10 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=15;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=16;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
   water:{},          // {date: oz}
@@ -495,6 +504,7 @@ function load(){
 function migrate(r){
   r.settings=Object.assign({},DEFAULTS.settings,r.settings);
   r.settings.reminders=Object.assign({enabled:false,meals:true,water:true,weighin:true,weekly:true}, r.settings.reminders||{});
+  r.settings.reminders.times=Object.assign({lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}, r.settings.reminders.times||{});
   r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0,lastPushedAt:0}, r.sync||{});
   r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{}; r.insight=r.insight||null;
   const CAT_MAP={Protein:"Meat",Carbs:"Grains"};                 // migrate old macro-categories to food types
@@ -689,6 +699,10 @@ function renderSettings(){
   $("#remWater").classList.toggle("on",rem.water!==false);
   $("#remWeighin").classList.toggle("on",rem.weighin!==false);
   $("#remWeekly").classList.toggle("on",rem.weekly!==false);
+  const rt=rem.times||{};
+  $("#timeLunch").value=rt.lunch||"12:30"; $("#timeDinner").value=rt.dinner||"19:00";
+  $("#timeWater").value=rt.water||"14:00"; $("#timeWeighin").value=rt.weighin||"06:45";
+  $("#timeWeekly").value=rt.weekly||"18:00"; $("#dayWeekly").value=rt.weeklyDay||"Sun";
   $("#togSync").classList.toggle("on",S.sync.enabled);
   $("#syncWrap").classList.toggle("hidden",!S.sync.enabled);
   $("#setPass").value=S.sync.passphrase||"";
@@ -971,6 +985,8 @@ $("#togRem").onclick=async ()=>{
 };
 function bindRem(id,key){ $(id).onclick=async ()=>{ S.settings.reminders[key]=!S.settings.reminders[key]; save(); renderSettings(); if(S.settings.reminders.enabled) await refreshSubPrefs(); }; }
 bindRem("#remMeals","meals"); bindRem("#remWater","water"); bindRem("#remWeighin","weighin"); bindRem("#remWeekly","weekly");
+function bindRemTime(id,key){ $(id).onchange=async ()=>{ S.settings.reminders.times=S.settings.reminders.times||{}; S.settings.reminders.times[key]=$(id).value; save(); if(S.settings.reminders.enabled) await refreshSubPrefs(); }; }
+bindRemTime("#timeLunch","lunch"); bindRemTime("#timeDinner","dinner"); bindRemTime("#timeWater","water"); bindRemTime("#timeWeighin","weighin"); bindRemTime("#timeWeekly","weekly"); bindRemTime("#dayWeekly","weeklyDay");
 $("#btnTestRem").onclick=async ()=>{
   let sub=await getPushSub();
   if(!sub){ const ok=await enableReminders(); if(!ok) return; sub=await getPushSub(); if(!sub){ remStatus("No subscription yet."); return; } }

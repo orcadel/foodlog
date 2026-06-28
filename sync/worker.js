@@ -154,6 +154,7 @@ async function runReminders(env) {
   }
 }
 
+function parseHHMM(s) { if (typeof s !== "string" || !s.includes(":")) return null; const [h, m] = s.split(":").map(Number); if (isNaN(h) || isNaN(m)) return null; return h * 60 + m; }
 function dueReminders(prefs, tz) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz, hour12: false, weekday: "short",
@@ -161,15 +162,16 @@ function dueReminders(prefs, tz) {
   });
   const p = {};
   for (const part of fmt.formatToParts(new Date())) p[part.type] = part.value;
-  const hh = +p.hour % 24, mm = +p.minute;
+  const nowMin = (+p.hour % 24) * 60 + (+p.minute);
   const date = `${p.year}-${p.month}-${p.day}`;
-  const at = (h, m) => hh === h && mm === m;
+  const t = prefs.times || {};
+  const tick = (hhmm) => { const x = parseHHMM(hhmm); return x != null && Math.round(x / 15) * 15 === nowMin; }; // nearest 15-min cron tick
   const out = [];
-  if (prefs.weighin && at(6, 45)) out.push({ key: "weighin", title: "Morning weigh-in", body: "Log today's weight in FoodLog.", localDate: date });
-  if (prefs.meals && at(12, 30)) out.push({ key: "lunch", title: "Lunch check-in", body: "Don't forget to log your lunch.", localDate: date });
-  if (prefs.meals && at(19, 0)) out.push({ key: "dinner", title: "Dinner check-in", body: "Log your dinner in FoodLog.", localDate: date });
-  if (prefs.water && at(14, 0)) out.push({ key: "water", title: "Hydration", body: "Time for some water.", localDate: date });
-  if (prefs.weekly && p.weekday === "Sun" && at(18, 0)) out.push({ key: "weekly", title: "Your weekly insight is ready", body: "Open FoodLog to see this week's recap and AI insight.", localDate: date });
+  if (prefs.weighin && tick(t.weighin || "06:45")) out.push({ key: "weighin", title: "Morning weigh-in", body: "Log today's weight in FoodLog.", localDate: date });
+  if (prefs.meals && tick(t.lunch || "12:30")) out.push({ key: "lunch", title: "Lunch check-in", body: "Don't forget to log your lunch.", localDate: date });
+  if (prefs.meals && tick(t.dinner || "19:00")) out.push({ key: "dinner", title: "Dinner check-in", body: "Log your dinner in FoodLog.", localDate: date });
+  if (prefs.water && tick(t.water || "14:00")) out.push({ key: "water", title: "Hydration", body: "Time for some water.", localDate: date });
+  if (prefs.weekly && p.weekday === (t.weeklyDay || "Sun") && tick(t.weekly || "18:00")) out.push({ key: "weekly", title: "Your weekly insight is ready", body: "Open FoodLog to see this week's recap and AI insight.", localDate: date });
   return out;
 }
 
