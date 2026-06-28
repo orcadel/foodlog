@@ -14,11 +14,14 @@
   :root{
     --bg:#f5f6f8; --card:#ffffff; --ink:#1c2127; --muted:#7b8694; --line:#e7eaee;
     --accent:#2f8f5b; --accent-soft:#e6f3ec; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
+    --press:#eef0f3; --soft:#f7f8fa; --field:#fbfcfd; --track:#eef0f3; --toggle-off:#d3d8de; --header-bg:rgba(245,246,248,.86); --nav-bg:rgba(255,255,255,.92);
     --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541; --cat-Meat:#e0543f; --cat-Grains:#c98a3a; --cat-Dairy:#7eb6e0;
     --cat-Fats:#9a9b4a; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4; --cat-Other:#9aa5b1;
     --cat-Protein:#e0543f; --cat-Carbs:#c98a3a;
     --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
   }
+  :root[data-theme="dark"]{--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);} }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
   body{
@@ -29,7 +32,7 @@
   }
   .wrap{max-width:540px;margin:0 auto;padding:0 16px}
   header.app{
-    position:sticky;top:0;z-index:20;background:rgba(245,246,248,.86);
+    position:sticky;top:0;z-index:20;background:var(--header-bg);
     backdrop-filter:saturate(160%) blur(12px);
     padding:calc(10px + var(--safe-top)) 0 8px;border-bottom:1px solid var(--line);
   }
@@ -38,7 +41,7 @@
   .datebar .sub{font-size:12px;color:var(--muted);font-weight:500;margin-top:1px}
   .navbtn{width:38px;height:38px;border-radius:11px;border:1px solid var(--line);background:var(--card);
     display:grid;place-items:center;font-size:18px;color:var(--ink);cursor:pointer}
-  .navbtn:active{background:#eef0f3}
+  .navbtn:active{background:var(--track)}
   section{padding-top:14px}
   .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
   h2.title{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:2px 2px 10px;font-weight:650}
@@ -53,10 +56,10 @@
   .stats{flex:1;display:flex;flex-direction:column;gap:10px}
   .statline{display:flex;justify-content:space-between;font-size:14px}
   .statline .k{color:var(--muted)} .statline .v{font-weight:620}
-  .bar{height:8px;border-radius:6px;background:#eef0f3;overflow:hidden;margin-top:6px}
+  .bar{height:8px;border-radius:6px;background:var(--track);overflow:hidden;margin-top:6px}
   .bar > i{display:block;height:100%;border-radius:6px;background:var(--accent)}
   .macro-mini{display:flex;gap:8px;margin-top:4px}
-  .chip-macro{flex:1;background:#f7f8fa;border-radius:11px;padding:8px;text-align:center}
+  .chip-macro{flex:1;background:var(--soft);border-radius:11px;padding:8px;text-align:center}
   .chip-macro .v{font-weight:680;font-size:15px} .chip-macro .k{font-size:10.5px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.4px}
 
   /* meals */
@@ -67,7 +70,7 @@
   .additem{font-size:13px;color:var(--accent);font-weight:650;background:none;border:none;cursor:pointer;padding:4px}
   .items{display:flex;flex-direction:column;gap:1px}
   .item{display:flex;align-items:center;gap:11px;background:var(--card);padding:11px 6px;border-top:1px solid var(--line);cursor:pointer}
-  .item:active{background:#f5f7f9}
+  .item:active{background:var(--press)}
   .item:first-child{border-top:none}
   .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
   .item .nm{flex:1;min-width:0}
@@ -82,13 +85,13 @@
     font-size:15.5px;font-weight:640;padding:13px 16px;cursor:pointer;width:100%}
   .btn.primary{background:var(--accent);color:#fff}
   .btn.primary:active{background:#287c4f}
-  .btn.ghost{background:#f1f3f5;color:var(--ink)}
-  .btn.ghost:active{background:#e7eaee}
+  .btn.ghost{background:var(--soft);color:var(--ink)}
+  .btn.ghost:active{background:var(--press)}
   .btn.cam{background:var(--accent-soft);color:var(--accent);border:1px dashed #aedcc1}
   .btn[disabled]{opacity:.5;pointer-events:none}
 
   /* bottom tab bar */
-  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(255,255,255,.92);
+  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--nav-bg);
     backdrop-filter:saturate(160%) blur(12px);border-top:1px solid var(--line);
     display:flex;padding:6px 0 calc(6px + var(--safe-bot))}
   nav.tabs button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
@@ -104,21 +107,21 @@
     transform:translateY(110%);transition:transform .26s cubic-bezier(.32,.72,0,1);max-width:540px;margin:0 auto;
     max-height:92vh;overflow-y:auto}
   .sheet.show{transform:translateY(0)}
-  .grab{width:38px;height:4px;border-radius:3px;background:#d7dbe0;margin:6px auto 12px}
+  .grab{width:38px;height:4px;border-radius:3px;background:var(--press);margin:6px auto 12px}
   .sheet h3{margin:0 0 14px;font-size:18px;font-weight:680;letter-spacing:-.3px}
   label.fl{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:12px 2px 5px;text-transform:uppercase;letter-spacing:.4px}
-  input.f,select.f{width:100%;font-size:16px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#fbfcfd;color:var(--ink);font-family:inherit}
-  input.f:focus,select.f:focus{outline:none;border-color:var(--accent);background:#fff}
+  input.f,select.f{width:100%;font-size:16px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--field);color:var(--ink);font-family:inherit}
+  input.f:focus,select.f:focus{outline:none;border-color:var(--accent);background:var(--card)}
   .row2{display:flex;gap:10px} .row2>div{flex:1}
   .cats{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
-  .cat{font-size:13px;font-weight:600;padding:8px 12px;border-radius:11px;border:1.5px solid var(--line);background:#fff;cursor:pointer;color:var(--muted)}
+  .cat{font-size:13px;font-weight:600;padding:8px 12px;border-radius:11px;border:1.5px solid var(--line);background:var(--field);cursor:pointer;color:var(--muted)}
   .cat.on{color:#fff;border-color:transparent}
   .macro-fields{max-height:0;overflow:hidden;transition:max-height .25s}
   .macro-fields.open{max-height:240px}
   .morelink{font-size:13px;color:var(--accent);font-weight:620;background:none;border:none;padding:8px 2px;cursor:pointer}
   .recents{display:flex;flex-direction:column;gap:1px;margin-top:4px}
   .recent{display:flex;align-items:center;gap:10px;padding:11px 4px;border-top:1px solid var(--line);cursor:pointer}
-  .recent:active{background:#f5f7f9}
+  .recent:active{background:var(--press)}
   .recent .t{flex:1;font-size:14.5px}
   .recent .k{font-size:13px;color:var(--muted);font-weight:560}
   .camstatus{font-size:13px;color:var(--muted);text-align:center;padding:6px;min-height:20px}
@@ -126,7 +129,7 @@
 
   /* weight */
   .wstats{display:flex;gap:10px;margin-bottom:14px}
-  .wstat{flex:1;background:#f7f8fa;border-radius:13px;padding:12px;text-align:center}
+  .wstat{flex:1;background:var(--soft);border-radius:13px;padding:12px;text-align:center}
   .wstat .v{font-size:20px;font-weight:720;letter-spacing:-.5px}
   .wstat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;font-weight:600}
   .wstat .v.good{color:var(--accent)}
@@ -136,11 +139,11 @@
   .set-row{display:flex;align-items:center;justify-content:space-between;padding:13px 2px;border-top:1px solid var(--line);gap:12px}
   .set-row:first-child{border-top:none}
   .set-row .l{font-size:15px;font-weight:540} .set-row .d{font-size:12px;color:var(--muted);margin-top:2px;max-width:240px}
-  .toggle{width:50px;height:30px;border-radius:16px;background:#d3d8de;position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s}
+  .toggle{width:50px;height:30px;border-radius:16px;background:var(--toggle-off);position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s}
   .toggle.on{background:var(--accent)}
   .toggle i{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.2);transition:left .2s}
   .toggle.on i{left:23px}
-  .set-input{width:96px;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;text-align:right;background:#fbfcfd}
+  .set-input{width:96px;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:10px;text-align:right;background:var(--field)}
   .hint{font-size:12px;color:var(--muted);line-height:1.5;margin:6px 2px}
   .hidden{display:none!important}
   .toast{position:fixed;left:50%;bottom:calc(86px + var(--safe-bot));transform:translateX(-50%) translateY(10px);
@@ -164,7 +167,7 @@
   .acc-head .chev{color:var(--muted);transition:transform .22s;flex:0 0 auto;font-size:18px}
   .acc-item.open .acc-head .chev{transform:rotate(90deg)}
   .acc-body{max-height:0;overflow:hidden;transition:max-height .3s ease}
-  .acc-body .inner{padding:0 4px 16px;font-size:14px;line-height:1.6;color:#3a434e}
+  .acc-body .inner{padding:0 4px 16px;font-size:14px;line-height:1.6;color:var(--ink)}
   .acc-body .inner b{color:var(--ink);font-weight:650}
   .acc-body a{color:var(--accent);font-weight:640;text-decoration:none}
   /* weekly insight — twirl card */
@@ -178,6 +181,10 @@
   .tc-close{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-weight:620;padding:8px;cursor:pointer;font-size:15px}
   .rem-sub{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 2px 6px 14px;color:var(--muted);font-size:14px}
   .timei{width:auto;min-width:92px;padding:8px 10px;text-align:left}
+  .ring-track{stroke:var(--track)}
+  .seg{display:flex;background:var(--soft);border-radius:11px;padding:3px;gap:3px}
+  .seg button{flex:1;border:none;background:none;padding:9px;border-radius:9px;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+  .seg button.on{background:var(--card);color:var(--ink);box-shadow:var(--shadow)}
 </style>
 </head>
 <body>
@@ -200,7 +207,7 @@
       <div class="ring-row">
         <div class="ring">
           <svg width="128" height="128" viewBox="0 0 128 128">
-            <circle cx="64" cy="64" r="56" fill="none" stroke="#eef0f3" stroke-width="13"/>
+            <circle cx="64" cy="64" r="56" fill="none" class="ring-track" stroke-width="13"/>
             <g id="ringSegs"></g>
           </svg>
           <div class="center">
@@ -326,6 +333,10 @@
       </div>
     </div>
 
+    <div class="card">
+      <h2 class="title">Appearance</h2>
+      <div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button></div>
+    </div>
     <div class="card">
       <h2 class="title">Daily targets</h2>
       <div class="set-row">
@@ -480,10 +491,10 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=16;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=17;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
   water:{},          // {date: oz}
@@ -686,6 +697,7 @@ function renderSettings(){
   $("#setHin").value=S.settings.heightIn?S.settings.heightIn%12:"";
   $("#setAct").value=S.settings.activity;
   $("#togGlp1").classList.toggle("on",S.settings.glp1!==false);
+  document.querySelectorAll("#themeSeg button").forEach(b=>b.classList.toggle("on", b.dataset.theme===(S.settings.theme||"auto")));
   $("#setCal").value=S.settings.calTarget;
   $("#setPro").value=S.settings.proTarget;
   $("#setWater").value=S.settings.waterGoal;
@@ -1169,6 +1181,9 @@ let tT;
 function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(tT); tT=setTimeout(()=>t.classList.remove("show"),1700); }
 
 /* ---------- init ---------- */
+function applyTheme(){ const t=S.settings.theme||"auto"; const r=document.documentElement; if(t==="auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme",t); }
+document.querySelectorAll("#themeSeg button").forEach(b=>b.onclick=()=>{ S.settings.theme=b.dataset.theme; save(); applyTheme(); renderSettings(); });
+applyTheme();
 buildCats(); renderToday();
 if(S.sync && S.sync.enabled){ syncNow(false); startPolling(); }
 document.addEventListener("visibilitychange",()=>{
