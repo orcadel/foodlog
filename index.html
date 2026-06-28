@@ -471,7 +471,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=14;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=15;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
@@ -907,13 +907,17 @@ async function syncNow(showToast){
       _applyingRemote=true; S=mergeRemote(remote); _applyingRemote=false;
       rerenderCurrent();
     }}
+    let pushedOK=true;
     if(needPush){
       const body=await encryptState(syncable(),key);
-      await fetch(SYNC_ENDPOINT+"?id="+id,{method:"PUT",headers:{"Content-Type":"application/json"},body});
+      const pr=await fetch(SYNC_ENDPOINT+"?id="+id,{method:"PUT",headers:{"Content-Type":"application/json"},body});
+      pushedOK=pr.ok;                                                  // 503 = storage limit; don't mark as pushed
     }
-    _applyingRemote=true; S.sync.lastPushedAt=S.updatedAt||0; S.sync.lastSync=Date.now(); save(); _applyingRemote=false;
-    setSyncStatus((needPush?"Synced ":"Up to date · ")+new Date(S.sync.lastSync).toLocaleTimeString());
-    if(showToast) toast("Synced");
+    _applyingRemote=true;
+    if(pushedOK) S.sync.lastPushedAt=S.updatedAt||0;                   // only advance the marker on a real success, so failures retry
+    S.sync.lastSync=Date.now(); save(); _applyingRemote=false;
+    setSyncStatus(!pushedOK ? "Sync paused — storage limit; retries automatically" : (needPush?"Synced ":"Up to date · ")+new Date(S.sync.lastSync).toLocaleTimeString());
+    if(showToast) toast(pushedOK ? "Synced" : "Sync paused (storage limit)");
   }catch(e){ setSyncStatus("Sync error — check your passphrase and connection"); if(showToast) toast("Sync failed"); }
   _busy=false;
 }

@@ -125,7 +125,8 @@ export default {
     if (req.method === "PUT") {
       const b = await req.text();
       if (b.length > 4_000_000) return json({ error: "too large" }, 413);
-      await env.SYNC.put("blob:" + id, b);
+      try { await env.SYNC.put("blob:" + id, b); }
+      catch (e) { return json({ error: "storage write limit reached — resets at 00:00 UTC", detail: String(e && e.message || e) }, 503); }
       return json({ ok: true });
     }
     return json({ error: "method not allowed" }, 405);
