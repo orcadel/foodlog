@@ -76,7 +76,7 @@ export default {
       }
       const j = await aRes.json();
       const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
-      await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 });
+      try { await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 }); } catch (e) {} // best-effort; don't fail the call if KV writes are capped
       return json({ text });
     }
 
@@ -111,7 +111,7 @@ export default {
       }
       const j = await aRes.json();
       const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
-      await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 });
+      try { await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 }); } catch (e) {} // best-effort; don't fail the call if KV writes are capped
       return json({ text });
     }
 
