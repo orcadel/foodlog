@@ -15,7 +15,7 @@
     --bg:#f5f6f8; --card:#ffffff; --ink:#1c2127; --muted:#7b8694; --line:#e7eaee;
     --accent:#2f8f5b; --accent-soft:#e6f3ec; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
     --cat-Protein:#e0543f; --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541;
-    --cat-Carbs:#c98a3a; --cat-Fats:#5e84b3; --cat-Treats:#b06cc4;
+    --cat-Carbs:#c98a3a; --cat-Fats:#5e84b3; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4;
     --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -213,11 +213,28 @@
       </div>
     </div>
 
+    <div class="card" id="waterCard">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+        <h2 class="title" style="margin:0">Water</h2>
+        <span id="waterAmt" style="font-size:13px;color:var(--muted);font-weight:600"></span>
+      </div>
+      <div class="bar" style="height:10px"><i id="waterBar" style="width:0%;background:#18a0b8"></i></div>
+      <div style="display:flex;gap:8px;margin-top:13px">
+        <button class="btn ghost" id="waterCup" style="flex:1">+ Cup · 8 oz</button>
+        <button class="btn ghost" id="water16" style="flex:1">+ 16 oz</button>
+        <button class="btn ghost" id="waterMinus" style="flex:0 0 56px">−</button>
+      </div>
+    </div>
+
     <div class="card" id="mealsCard"><!-- meals injected --></div>
   </section>
 
   <!-- WEIGHT -->
   <section id="view-weight" class="hidden">
+    <div class="card">
+      <h2 class="title">This week</h2>
+      <div id="weeklyBox"></div>
+    </div>
     <div class="card">
       <h2 class="title">Progress</h2>
       <div class="wstats">
@@ -297,6 +314,10 @@
       <div class="set-row">
         <div><div class="l">Protein target (g)</div><div class="d">Protects muscle on a GLP-1 + deficit</div></div>
         <input class="set-input" id="setPro" type="number" inputmode="numeric">
+      </div>
+      <div class="set-row">
+        <div><div class="l">Water goal (oz)</div><div class="d">Hydration is easy to miss on a GLP-1</div></div>
+        <input class="set-input" id="setWater" type="number" inputmode="numeric">
       </div>
       <div class="set-row">
         <div><div class="l">Start weight (lb)</div><div class="d">Your baseline for progress</div></div>
@@ -406,11 +427,12 @@
 
 <script>
 /* ---------- state ---------- */
-const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Treats"];
+const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Drinks","Treats"];
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
+  water:{},          // {date: oz}
   deleted:[],        // tombstones: ids of removed log entries (for sync)
   updatedAt:0,       // last local change (ms) — drives sync merge
   sync:{enabled:false, passphrase:"", lastSync:0},
@@ -427,7 +449,7 @@ function load(){
 function migrate(r){
   r.settings=Object.assign({},DEFAULTS.settings,r.settings);
   r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0}, r.sync||{});
-  r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0;
+  r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{};
   return r;
 }
 let _applyingRemote=false, _pushTimer=null;
@@ -481,6 +503,7 @@ function renderToday(){
   $("#mCarb").textContent=Math.round(carb)+"g";
   $("#mFat").textContent=Math.round(fat)+"g";
   $("#mItems").textContent=items.length;
+  updateWaterCard();
 
   // meals
   const meals=["Breakfast","Lunch","Dinner","Snacks"];
@@ -509,8 +532,40 @@ function renderToday(){
 }
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
 
+/* ---------- WATER ---------- */
+function updateWaterCard(){
+  const oz=S.water[cursor]||0, goal=S.settings.waterGoal||64;
+  $("#waterAmt").textContent = oz+" / "+goal+" oz";
+  $("#waterBar").style.width = Math.min(oz/goal*100,100)+"%";
+}
+function addWater(oz){ S.water[cursor]=Math.max(0,(S.water[cursor]||0)+oz); save(); updateWaterCard(); }
+$("#waterCup").onclick=()=>addWater(8);
+$("#water16").onclick=()=>addWater(16);
+$("#waterMinus").onclick=()=>addWater(-8);
+
 /* ---------- WEIGHT ---------- */
+function renderWeekly(){
+  const days=[]; for(let i=0;i<7;i++) days.push(shiftDay(today(),-i));
+  const logged=days.filter(d=>S.log.some(x=>x.date===d));
+  const dayCal=d=>S.log.filter(x=>x.date===d).reduce((a,x)=>a+(+x.cal||0),0);
+  const dayPro=d=>S.log.filter(x=>x.date===d).reduce((a,x)=>a+(+x.pro||0),0);
+  const avgCal=logged.length? Math.round(logged.reduce((a,d)=>a+dayCal(d),0)/logged.length):0;
+  const avgPro=logged.length? Math.round(logged.reduce((a,d)=>a+dayPro(d),0)/logged.length):0;
+  const proHit=logged.filter(d=>dayPro(d)>=S.settings.proTarget).length;
+  const avgWater=Math.round(days.reduce((a,d)=>a+(S.water[d]||0),0)/7);
+  const wk=[...S.weights].filter(x=>x.date>shiftDay(today(),-8)).sort((a,b)=>a.date<b.date?-1:1);
+  const wChange=wk.length>=2 ? +(wk[wk.length-1].lb-wk[0].lb).toFixed(1) : null;
+  const box=document.getElementById("weeklyBox"); if(!box) return;
+  box.innerHTML=`<div class="calc-rows">
+    <div class="r"><span class="k">Days logged</span><span>${logged.length} / 7</span></div>
+    <div class="r"><span class="k">Avg calories</span><span>${avgCal? avgCal+" kcal":"—"}</span></div>
+    <div class="r"><span class="k">Avg protein</span><span>${avgPro? avgPro+" g":"—"} · goal hit ${proHit}/7</span></div>
+    <div class="r"><span class="k">Avg water</span><span>${avgWater} oz</span></div>
+    <div class="r"><span class="k">Weight change (7d)</span><span>${wChange==null?"—":(wChange<=0?"−":"+")+Math.abs(wChange)+" lb"}</span></div>
+  </div>`;
+}
 function renderWeight(){
+  renderWeekly();
   const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
   const cur=w.length?w[w.length-1].lb:null;
   const start=S.settings.startWeight, goal=S.settings.goalWeight;
@@ -549,6 +604,7 @@ function renderSettings(){
   $("#setAct").value=S.settings.activity;
   $("#setCal").value=S.settings.calTarget;
   $("#setPro").value=S.settings.proTarget;
+  $("#setWater").value=S.settings.waterGoal;
   $("#setStart").value=S.settings.startWeight;
   $("#setGoal").value=S.settings.goalWeight;
   $("#setKey").value=S.settings.apiKey;
@@ -725,7 +781,7 @@ async function analyzePhoto(b64,mime){
 $("#togPhoto").onclick=()=>{ S.settings.photoEnabled=!S.settings.photoEnabled; save(); renderSettings(); };
 const bindNum=(id,key,isFloat)=>{ $(id).onchange=e=>{ const v=isFloat?parseFloat(e.target.value):parseInt(e.target.value); if(!isNaN(v)){S.settings[key]=v;save();} }; };
 bindNum("#setCal","calTarget"); bindNum("#setPro","proTarget");
-bindNum("#setStart","startWeight",1); bindNum("#setGoal","goalWeight",1);
+bindNum("#setStart","startWeight",1); bindNum("#setGoal","goalWeight",1); bindNum("#setWater","waterGoal");
 $("#setKey").onchange=e=>{ S.settings.apiKey=e.target.value.trim(); save(); };
 $("#setAge").onchange=e=>{ const v=parseInt(e.target.value); S.settings.age=isNaN(v)?null:v; save(); };
 $("#setGender").onchange=e=>{ S.settings.gender=e.target.value; save(); };
@@ -765,7 +821,8 @@ function mergeRemote(r){
   const wd={}; [...(older.weights||[]),...(newer.weights||[])].forEach(w=>wd[w.date]=w);
   const settings=Object.assign({},DEFAULTS.settings,newer.settings);
   settings.apiKey=S.settings.apiKey;                                                 // keep local API key, never sync it
-  return {settings, log, weights:Object.values(wd), deleted:[...deleted],
+  const water=Object.assign({}, older.water||{}, newer.water||{});
+  return {settings, log, weights:Object.values(wd), water, deleted:[...deleted],
           updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync};
 }
 function setSyncStatus(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }
