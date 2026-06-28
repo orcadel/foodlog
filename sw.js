@@ -1,5 +1,5 @@
 /* FoodLog service worker — network-first for fresh updates, cache fallback for offline. */
-const CACHE = "foodlog-v4";
+const CACHE = "foodlog-v5";
 const ASSETS = [
   "./", "./index.html", "./manifest.json",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"
@@ -30,4 +30,22 @@ self.addEventListener("fetch", e => {
       return res;
     }).catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
   );
+});
+
+// Web Push: show the reminder notification.
+self.addEventListener("push", e => {
+  let d = { title: "FoodLog", body: "" };
+  try { if (e.data) d = e.data.json(); } catch (_) { if (e.data) d.body = e.data.text(); }
+  e.waitUntil(self.registration.showNotification(d.title || "FoodLog", {
+    body: d.body || "", icon: "./icon-192.png", badge: "./icon-192.png", tag: d.title
+  }));
+});
+
+// Tapping a notification opens/focuses the app.
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(cl => {
+    for (const c of cl) { if ("focus" in c) return c.focus(); }
+    if (clients.openWindow) return clients.openWindow("./");
+  }));
 });

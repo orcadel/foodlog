@@ -359,6 +359,24 @@
     </div>
 
     <div class="card">
+      <h2 class="title">Reminders</h2>
+      <div class="set-row">
+        <div><div class="l">Enable reminders</div><div class="d">Push notifications even when the app is closed. On iPhone, add the app to your Home Screen first.</div></div>
+        <div class="toggle" id="togRem"><i></i></div>
+      </div>
+      <div id="remWrap">
+        <div class="set-row"><div class="l">Meal check-ins</div><div class="toggle" id="remMeals"><i></i></div></div>
+        <div class="set-row"><div class="l">Hydration</div><div class="toggle" id="remWater"><i></i></div></div>
+        <div class="set-row"><div class="l">Morning weigh-in</div><div class="toggle" id="remWeighin"><i></i></div></div>
+        <div class="set-row"><div class="l">Weekly recap</div><div class="toggle" id="remWeekly"><i></i></div></div>
+        <div class="hint">Local times: weigh-in 6:45am · lunch 12:30pm · hydration 2pm · dinner 7pm · weekly recap Sun 6pm.</div>
+        <div style="height:8px"></div>
+        <button class="btn ghost" id="btnTestRem">Send a test notification</button>
+        <div class="camstatus" id="remStatus" style="text-align:left"></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2 class="title">Your data</h2>
       <div class="hint">Everything lives in this browser on this device. No account, no server. Export to back up or move devices.</div>
       <div style="height:8px"></div>
@@ -429,7 +447,7 @@
 /* ---------- state ---------- */
 const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Drinks","Treats"];
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
   water:{},          // {date: oz}
@@ -448,6 +466,7 @@ function load(){
 }
 function migrate(r){
   r.settings=Object.assign({},DEFAULTS.settings,r.settings);
+  r.settings.reminders=Object.assign({enabled:false,meals:true,water:true,weighin:true,weekly:true}, r.settings.reminders||{});
   r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0}, r.sync||{});
   r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{};
   return r;
@@ -610,6 +629,13 @@ function renderSettings(){
   $("#setKey").value=S.settings.apiKey;
   $("#togPhoto").classList.toggle("on",S.settings.photoEnabled);
   $("#apiWrap").classList.toggle("hidden",!S.settings.photoEnabled);
+  const rem=S.settings.reminders||{};
+  $("#togRem").classList.toggle("on",!!rem.enabled);
+  $("#remWrap").classList.toggle("hidden",!rem.enabled);
+  $("#remMeals").classList.toggle("on",rem.meals!==false);
+  $("#remWater").classList.toggle("on",rem.water!==false);
+  $("#remWeighin").classList.toggle("on",rem.weighin!==false);
+  $("#remWeekly").classList.toggle("on",rem.weekly!==false);
   $("#togSync").classList.toggle("on",S.sync.enabled);
   $("#syncWrap").classList.toggle("hidden",!S.sync.enabled);
   $("#setPass").value=S.sync.passphrase||"";
@@ -801,7 +827,7 @@ async function deriveKey(pass){
   return crypto.subtle.deriveKey({name:"PBKDF2",salt:_enc.encode("foodlog-enc-v1"),iterations:120000,hash:"SHA-256"},
     base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
 }
-function syncable(){ const s=structuredClone(S); delete s.sync; if(s.settings) delete s.settings.apiKey; return s; }
+function syncable(){ const s=structuredClone(S); delete s.sync; if(s.settings){ delete s.settings.apiKey; delete s.settings.reminders; } return s; }
 async function encryptState(obj,key){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,_enc.encode(JSON.stringify(obj)));
@@ -821,6 +847,7 @@ function mergeRemote(r){
   const wd={}; [...(older.weights||[]),...(newer.weights||[])].forEach(w=>wd[w.date]=w);
   const settings=Object.assign({},DEFAULTS.settings,newer.settings);
   settings.apiKey=S.settings.apiKey;                                                 // keep local API key, never sync it
+  settings.reminders=S.settings.reminders;                                           // reminders are device-local
   const water=Object.assign({}, older.water||{}, newer.water||{});
   return {settings, log, weights:Object.values(wd), water, deleted:[...deleted],
           updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync};
@@ -865,6 +892,48 @@ $("#togSync").onclick=()=>{
 };
 $("#setPass").onchange=e=>{ S.sync.passphrase=e.target.value.trim(); save(); if(S.sync.enabled && S.sync.passphrase){ syncNow(true); startPolling(); } };
 $("#btnSyncNow").onclick=()=>{ if(!S.sync.passphrase){ toast("Enter a passphrase first"); return; } syncNow(true); };
+
+/* ---------- REMINDERS (Web Push) ---------- */
+const PUSH_ENDPOINT="https://foodlog-sync.dtgruner.workers.dev";
+const VAPID_PUBLIC="BJOEKlwXmVCrAuxVg2XYApZ_rYFfQOMn3OyRpaP4EDsZBju6b-4UIowvFCwdG4xQ8fK5WeZfGhrQOlXGUsofYV8";
+function urlB64ToU8(s){ const pad="=".repeat((4-s.length%4)%4); const b=(s+pad).replace(/-/g,"+").replace(/_/g,"/"); return Uint8Array.from(atob(b),c=>c.charCodeAt(0)); }
+function remStatus(t){ const e=document.getElementById("remStatus"); if(e) e.textContent=t; }
+async function getPushSub(){ if(!("serviceWorker" in navigator)||!("PushManager" in window)) return null; const reg=await navigator.serviceWorker.ready; return reg.pushManager.getSubscription(); }
+async function postSub(sub){ await fetch(PUSH_ENDPOINT+"/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub.toJSON(), prefs:S.settings.reminders, tz:Intl.DateTimeFormat().resolvedOptions().timeZone})}); }
+async function enableReminders(){
+  try{
+    if(!("serviceWorker" in navigator)||!("PushManager" in window)){ remStatus("Push isn't supported here. On iPhone, add the app to your Home Screen, then enable."); return false; }
+    let perm=Notification.permission;
+    if(perm==="default") perm=await Notification.requestPermission();
+    if(perm!=="granted"){ remStatus("Notifications are blocked — allow them in your device settings."); return false; }
+    const reg=await navigator.serviceWorker.ready;
+    let sub=await reg.pushManager.getSubscription();
+    if(!sub) sub=await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:urlB64ToU8(VAPID_PUBLIC)});
+    await postSub(sub);
+    remStatus("Reminders on — try the test button.");
+    return true;
+  }catch(e){ remStatus("Couldn't enable: "+(e.message||e)); return false; }
+}
+async function disableReminders(){ try{ const sub=await getPushSub(); if(sub){ await fetch(PUSH_ENDPOINT+"/unsubscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})}); await sub.unsubscribe(); } }catch(e){} }
+async function refreshSubPrefs(){ const sub=await getPushSub(); if(sub) await postSub(sub); }
+
+$("#togRem").onclick=async ()=>{
+  if(!S.settings.reminders.enabled){
+    const ok=await enableReminders();
+    if(ok){ S.settings.reminders.enabled=true; save(); renderSettings(); }
+  }else{
+    S.settings.reminders.enabled=false; save(); renderSettings(); await disableReminders(); remStatus("");
+  }
+};
+function bindRem(id,key){ $(id).onclick=async ()=>{ S.settings.reminders[key]=!S.settings.reminders[key]; save(); renderSettings(); if(S.settings.reminders.enabled) await refreshSubPrefs(); }; }
+bindRem("#remMeals","meals"); bindRem("#remWater","water"); bindRem("#remWeighin","weighin"); bindRem("#remWeekly","weekly");
+$("#btnTestRem").onclick=async ()=>{
+  let sub=await getPushSub();
+  if(!sub){ const ok=await enableReminders(); if(!ok) return; sub=await getPushSub(); if(!sub){ remStatus("No subscription yet."); return; } }
+  remStatus("Sending test…");
+  try{ const r=await fetch(PUSH_ENDPOINT+"/test",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({subscription:sub.toJSON()})}); const j=await r.json(); remStatus(j.ok?"Test sent — check your notifications.":"Test failed (status "+j.status+")."); }
+  catch(e){ remStatus("Test failed — "+(e.message||"network")); }
+};
 
 /* ---------- LEARN: intake calculator ---------- */
 function latestWeightLb(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); return w.length? w[w.length-1].lb : S.settings.startWeight; }

@@ -8,3 +8,8 @@ compatibility_date = "2026-06-01"
 kv_namespaces = [
   { binding = "SYNC", id = "2ebe46eec71e4fe087229a2c4d50c847" }
 ]
+
+# Reminder scheduler — runs every 15 minutes; the Worker decides which
+# reminders are due per subscriber's timezone.
+[triggers]
+crons = ["*/15 * * * *"]
