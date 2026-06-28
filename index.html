@@ -13,15 +13,15 @@
 <style>
   :root{
     --bg:#f5f6f8; --card:#ffffff; --ink:#1c2127; --muted:#7b8694; --line:#e7eaee;
-    --accent:#737d8c; --accent-soft:#edeef1; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
-    --press:#eef0f3; --soft:#f7f8fa; --field:#fbfcfd; --track:#eef0f3; --toggle-off:#d3d8de; --header-bg:rgba(245,246,248,.86); --nav-bg:rgba(255,255,255,.92);
+    --accent:#2f8f5b; --accent-soft:#e6f3ec; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
+    --press:#eef0f3; --soft:#f7f8fa; --field:#fbfcfd; --track:#eef0f3; --toggle-off:#d3d8de; --header-bg:rgba(225,228,233,.94); --nav-bg:rgba(255,255,255,.92);
     --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541; --cat-Meat:#e0543f; --cat-Grains:#c98a3a; --cat-Dairy:#7eb6e0;
     --cat-Fats:#9a9b4a; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4; --cat-Other:#9aa5b1;
     --cat-Protein:#e0543f; --cat-Carbs:#c98a3a;
     --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
   }
-  :root[data-theme="dark"]{--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#8b95a3; --accent-soft:#262d36; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);}
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#8b95a3; --accent-soft:#262d36; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);} }
+  :root[data-theme="dark"]{--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);} }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
   body{
@@ -84,10 +84,10 @@
   .btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:none;border-radius:13px;
     font-size:15.5px;font-weight:640;padding:13px 16px;cursor:pointer;width:100%}
   .btn.primary{background:var(--accent);color:#fff}
-  .btn.primary:active{background:#5e6675}
+  .btn.primary:active{background:#287c4f}
   .btn.ghost{background:var(--soft);color:var(--ink)}
   .btn.ghost:active{background:var(--press)}
-  .btn.cam{background:var(--accent-soft);color:var(--accent);border:1px dashed #cfd4da}
+  .btn.cam{background:var(--accent-soft);color:var(--accent);border:1px dashed #aedcc1}
   .btn[disabled]{opacity:.5;pointer-events:none}
 
   /* bottom tab bar */
@@ -524,7 +524,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=19;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=20;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
