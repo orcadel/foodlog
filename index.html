@@ -14,8 +14,9 @@
   :root{
     --bg:#f5f6f8; --card:#ffffff; --ink:#1c2127; --muted:#7b8694; --line:#e7eaee;
     --accent:#2f8f5b; --accent-soft:#e6f3ec; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
-    --cat-Protein:#e0543f; --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541;
-    --cat-Carbs:#c98a3a; --cat-Fats:#5e84b3; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4;
+    --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541; --cat-Meat:#e0543f; --cat-Grains:#c98a3a; --cat-Dairy:#7eb6e0;
+    --cat-Fats:#9a9b4a; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4; --cat-Other:#9aa5b1;
+    --cat-Protein:#e0543f; --cat-Carbs:#c98a3a;
     --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -434,7 +435,7 @@
     </div>
   </div>
 
-  <label class="fl">Category</label>
+  <label class="fl">Food type</label>
   <div class="cats" id="catRow"></div>
 
   <button class="morelink" id="moreMacros">+ protein / carbs / fat</button>
@@ -470,8 +471,8 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=13;   // bumped every deploy; self-heal reloads if the live version.txt is newer
-const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Drinks","Treats"];
+const APP_BUILD=14;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
@@ -496,6 +497,8 @@ function migrate(r){
   r.settings.reminders=Object.assign({enabled:false,meals:true,water:true,weighin:true,weekly:true}, r.settings.reminders||{});
   r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0,lastPushedAt:0}, r.sync||{});
   r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{}; r.insight=r.insight||null;
+  const CAT_MAP={Protein:"Meat",Carbs:"Grains"};                 // migrate old macro-categories to food types
+  (r.log||[]).forEach(x=>{ if(CAT_MAP[x.cat]) x.cat=CAT_MAP[x.cat]; });
   return r;
 }
 let _applyingRemote=false, _pushTimer=null;
@@ -535,7 +538,7 @@ function renderToday(){
   // ring — segmented by food category
   const C=2*Math.PI*56;
   const cats={}; CATS.forEach(c=>cats[c]=0);
-  items.forEach(x=>{ const c=CATS.includes(x.cat)?x.cat:"Carbs"; cats[c]+=(+x.cal||0); });
+  items.forEach(x=>{ const c=CATS.includes(x.cat)?x.cat:"Other"; cats[c]+=(+x.cal||0); });
   const present=CATS.filter(c=>cats[c]>0);
   const gap=present.length>1?1.5:0;
   const segHost=$("#ringSegs"); segHost.innerHTML="";
@@ -591,7 +594,7 @@ function renderToday(){
     mi.forEach(x=>{
       const row=document.createElement("div"); row.className="item"; row.dataset.id=x.id;
       const sub=[x.cat, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
-      row.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Carbs'})"></span>
+      row.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Other'})"></span>
         <span class="nm"><div class="t">${esc(x.name)}</div><div class="s">${sub}</div></span>
         <span class="kc">${x.cal}</span>
         <button class="del" data-id="${x.id}">✕</button>`;
@@ -707,7 +710,7 @@ $("#prevDay").onclick=()=>{cursor=shiftDay(cursor,-1);renderToday();};
 $("#nextDay").onclick=()=>{ if(cursor<today()){cursor=shiftDay(cursor,1);renderToday();} };
 
 /* ---------- ADD sheet ---------- */
-let sheetMeal="Breakfast", chosenCat="Protein", editingId=null;
+let sheetMeal="Breakfast", chosenCat="Other", editingId=null;
 function buildCats(){
   const row=$("#catRow"); row.innerHTML="";
   CATS.forEach(c=>{
@@ -720,7 +723,7 @@ function buildCats(){
 function openSheet(meal, entry){
   editingId = entry ? entry.id : null;
   sheetMeal = entry ? entry.meal : (meal||guessMeal()); $("#fMeal").value=sheetMeal;
-  chosenCat = entry ? (entry.cat||"Protein") : "Protein"; buildCats();
+  chosenCat = entry ? (entry.cat||"Other") : "Other"; buildCats();
   $("#fName").value = entry ? entry.name : "";
   $("#fCal").value  = entry ? entry.cal : "";
   $("#fPro").value  = entry && entry.pro ? entry.pro : "";
@@ -752,7 +755,7 @@ function renderRecents(){
   $("#recentsWrap").style.display = out.length? "" : "none";
   out.forEach(x=>{
     const r=document.createElement("div"); r.className="recent";
-    r.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Carbs'})"></span>
+    r.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Other'})"></span>
       <span class="t">${esc(x.name)}</span><span class="k">${x.cal} kcal</span>`;
     r.onclick=()=>{ addEntry({name:x.name,cal:+x.cal,pro:+x.pro||0,carb:+x.carb||0,fat:+x.fat||0,cat:x.cat,meal:$("#fMeal").value}); toast(x.name+" logged"); closeSheet(); };
     host.appendChild(r);
