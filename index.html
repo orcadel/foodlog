@@ -470,6 +470,7 @@
 
 <script>
 /* ---------- state ---------- */
+const APP_BUILD=13;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Drinks","Treats"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
@@ -1158,6 +1159,13 @@ if("serviceWorker" in navigator){
   let _reloading=false;
   navigator.serviceWorker.addEventListener("controllerchange",()=>{ if(_reloading) return; _reloading=true; location.reload(); });
 }
+// self-heal: if a newer build is live, wipe caches and reload (defeats iOS PWA stale-launch caching)
+fetch("version.txt?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"0").then(v=>{
+  if(parseInt((v||"0").trim(),10) > APP_BUILD){
+    (self.caches ? caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))) : Promise.resolve())
+      .then(()=>location.reload());
+  }
+}).catch(()=>{});
 </script>
 </body>
 </html>
