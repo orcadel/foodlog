@@ -169,9 +169,9 @@
   /* weekly insight — twirl card */
   .twirl-wrap{position:fixed;inset:0;z-index:55;display:grid;place-items:center;pointer-events:none;perspective:1300px;padding:24px}
   .twirl-wrap.show{pointer-events:auto}
-  .twirl-card{width:min(88vw,380px);background:var(--card);border-radius:24px;box-shadow:0 24px 70px rgba(15,20,28,.4);padding:26px 24px;opacity:0;transform:rotateY(360deg) scale(.75)}
-  .twirl-wrap.show .twirl-card{animation:twirlIn .38s cubic-bezier(.25,.95,.3,1) forwards}
-  @keyframes twirlIn{0%{opacity:0;transform:rotateY(360deg) scale(.75)}35%{opacity:1}100%{opacity:1;transform:rotateY(0deg) scale(1)}}
+  .twirl-card{width:min(88vw,380px);background:var(--card);border-radius:24px;box-shadow:0 24px 70px rgba(15,20,28,.4);padding:26px 24px;opacity:0;transform:rotateY(720deg) scale(.85)}
+  .twirl-wrap.show .twirl-card{animation:twirlIn .45s cubic-bezier(.2,.75,.3,1) forwards}
+  @keyframes twirlIn{0%{opacity:0;transform:rotateY(720deg) scale(.85)}20%{opacity:1}100%{opacity:1;transform:rotateY(0deg) scale(1)}}
   .tc-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);font-weight:720;margin-bottom:10px}
   .tc-body{font-size:16px;line-height:1.6;color:var(--ink)}
   .tc-close{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-weight:620;padding:8px;cursor:pointer;font-size:15px}
