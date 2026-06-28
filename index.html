@@ -65,7 +65,8 @@
   .meal-head .cal{font-size:13px;color:var(--muted);font-weight:560}
   .additem{font-size:13px;color:var(--accent);font-weight:650;background:none;border:none;cursor:pointer;padding:4px}
   .items{display:flex;flex-direction:column;gap:1px}
-  .item{display:flex;align-items:center;gap:11px;background:var(--card);padding:11px 6px;border-top:1px solid var(--line)}
+  .item{display:flex;align-items:center;gap:11px;background:var(--card);padding:11px 6px;border-top:1px solid var(--line);cursor:pointer}
+  .item:active{background:#f5f7f9}
   .item:first-child{border-top:none}
   .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
   .item .nm{flex:1;min-width:0}
@@ -495,7 +496,7 @@ function renderToday(){
     const list=document.createElement("div"); list.className="items";
     if(mi.length===0){ const e=document.createElement("div"); e.className="empty"; e.textContent="Nothing yet"; list.appendChild(e); }
     mi.forEach(x=>{
-      const row=document.createElement("div"); row.className="item";
+      const row=document.createElement("div"); row.className="item"; row.dataset.id=x.id;
       const sub=[x.cat, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
       row.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Carbs'})"></span>
         <span class="nm"><div class="t">${esc(x.name)}</div><div class="s">${sub}</div></span>
@@ -574,7 +575,7 @@ $("#prevDay").onclick=()=>{cursor=shiftDay(cursor,-1);renderToday();};
 $("#nextDay").onclick=()=>{ if(cursor<today()){cursor=shiftDay(cursor,1);renderToday();} };
 
 /* ---------- ADD sheet ---------- */
-let sheetMeal="Breakfast", chosenCat="Protein";
+let sheetMeal="Breakfast", chosenCat="Protein", editingId=null;
 function buildCats(){
   const row=$("#catRow"); row.innerHTML="";
   CATS.forEach(c=>{
@@ -584,17 +585,25 @@ function buildCats(){
     row.appendChild(b);
   });
 }
-function openSheet(meal){
-  sheetMeal=meal||guessMeal(); $("#fMeal").value=sheetMeal;
-  chosenCat="Protein"; buildCats();
-  $("#fName").value="";$("#fCal").value="";$("#fPro").value="";$("#fCarb").value="";$("#fFat").value="";
+function openSheet(meal, entry){
+  editingId = entry ? entry.id : null;
+  sheetMeal = entry ? entry.meal : (meal||guessMeal()); $("#fMeal").value=sheetMeal;
+  chosenCat = entry ? (entry.cat||"Protein") : "Protein"; buildCats();
+  $("#fName").value = entry ? entry.name : "";
+  $("#fCal").value  = entry ? entry.cal : "";
+  $("#fPro").value  = entry && entry.pro ? entry.pro : "";
+  $("#fCarb").value = entry && entry.carb ? entry.carb : "";
+  $("#fFat").value  = entry && entry.fat ? entry.fat : "";
+  $("#sheetTitle").textContent = entry ? "Edit food" : "Add food";
+  $("#saveFood").textContent   = entry ? "Save changes" : "Add to log";
   $("#camStatus").textContent=""; $("#camStatus").className="camstatus";
-  $("#macroFields").classList.remove("open");
+  $("#macroFields").classList.toggle("open", !!(entry && (entry.pro||entry.carb||entry.fat)));
   $("#camBtn").classList.toggle("hidden",!S.settings.photoEnabled);
   renderRecents();
+  if(entry) $("#recentsWrap").style.display="none";
   $("#scrim").classList.add("show"); $("#addSheet").classList.add("show");
 }
-function closeSheet(){ $("#scrim").classList.remove("show"); $("#addSheet").classList.remove("show"); }
+function closeSheet(){ editingId=null; $("#scrim").classList.remove("show"); $("#addSheet").classList.remove("show"); }
 function guessMeal(){ const h=new Date().getHours(); return h<10?"Breakfast":h<15?"Lunch":h<21?"Dinner":"Snacks"; }
 $("#scrim").onclick=closeSheet;
 $("#moreMacros").onclick=()=>$("#macroFields").classList.toggle("open");
@@ -622,17 +631,24 @@ function addEntry(o){
   save(); renderToday();
 }
 $("#saveFood").onclick=()=>{
-  const name=$("#fName").value.trim(); const cal=+$("#fCal").value;
+  const name=$("#fName").value.trim();
   if(!name){ toast("Add a food name"); return; }
-  if(!cal && cal!==0){ toast("Add calories"); return; }
-  addEntry({name,cal,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,cat:chosenCat,meal:$("#fMeal").value});
-  toast(name+" logged"); closeSheet();
+  if($("#fCal").value.trim()===""){ toast("Add calories"); return; }
+  const data={name,cal:+$("#fCal").value,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,cat:chosenCat,meal:$("#fMeal").value};
+  if(editingId){
+    const ent=S.log.find(x=>x.id===editingId);
+    if(ent) Object.assign(ent,data);
+    save(); renderToday(); toast("Updated"); closeSheet();
+  } else {
+    addEntry(data); toast(name+" logged"); closeSheet();
+  }
 };
 
 /* delegated: add buttons + deletes */
 $("#mealsCard").addEventListener("click",e=>{
   const add=e.target.closest(".additem"); if(add){ openSheet(add.dataset.meal); return; }
-  const del=e.target.closest(".del"); if(del){ S.deleted=S.deleted||[]; S.deleted.push(del.dataset.id); S.log=S.log.filter(x=>x.id!==del.dataset.id); save(); renderToday(); }
+  const del=e.target.closest(".del"); if(del){ S.deleted=S.deleted||[]; S.deleted.push(del.dataset.id); S.log=S.log.filter(x=>x.id!==del.dataset.id); save(); renderToday(); return; }
+  const item=e.target.closest(".item"); if(item && item.dataset.id){ const ent=S.log.find(x=>x.id===item.dataset.id); if(ent) openSheet(ent.meal, ent); }
 });
 
 /* ---------- PHOTO recognition ---------- */
@@ -777,13 +793,20 @@ async function syncNow(showToast){
   }catch(e){ setSyncStatus("Sync error — check your passphrase and connection"); if(showToast) toast("Sync failed"); }
   _busy=false;
 }
-function queuePush(){ clearTimeout(_pushTimer); _pushTimer=setTimeout(()=>syncNow(false), 1500); }
+function queuePush(){ clearTimeout(_pushTimer); _pushTimer=setTimeout(()=>syncNow(false), 700); }
+let _pollTimer=null;
+function startPolling(){ stopPolling(); if(S.sync && S.sync.enabled && S.sync.passphrase && SYNC_ENDPOINT){ _pollTimer=setInterval(()=>{ if(!document.hidden) syncNow(false); }, 15000); } }
+function stopPolling(){ if(_pollTimer){ clearInterval(_pollTimer); _pollTimer=null; } }
 
 $("#togSync").onclick=()=>{
   S.sync.enabled=!S.sync.enabled; save(); renderSettings();
-  if(S.sync.enabled){ if(!SYNC_ENDPOINT) toast("Sync server not connected yet"); else if(!S.sync.passphrase) toast("Set a passphrase, then Sync now"); else syncNow(true); }
+  if(S.sync.enabled){
+    if(!SYNC_ENDPOINT) toast("Sync server not connected yet");
+    else if(!S.sync.passphrase) toast("Enter a passphrase to start");
+    else { syncNow(true); startPolling(); }
+  } else stopPolling();
 };
-$("#setPass").onchange=e=>{ S.sync.passphrase=e.target.value.trim(); save(); };
+$("#setPass").onchange=e=>{ S.sync.passphrase=e.target.value.trim(); save(); if(S.sync.enabled && S.sync.passphrase){ syncNow(true); startPolling(); } };
 $("#btnSyncNow").onclick=()=>{ if(!S.sync.passphrase){ toast("Enter a passphrase first"); return; } syncNow(true); };
 
 /* ---------- LEARN: intake calculator ---------- */
@@ -891,8 +914,13 @@ function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("sh
 
 /* ---------- init ---------- */
 buildCats(); renderToday();
-if(S.sync && S.sync.enabled) syncNow(false);
-document.addEventListener("visibilitychange",()=>{ if(!document.hidden && S.sync && S.sync.enabled) syncNow(false); });
+if(S.sync && S.sync.enabled){ syncNow(false); startPolling(); }
+document.addEventListener("visibilitychange",()=>{
+  if(!(S.sync && S.sync.enabled)) return;
+  if(document.hidden){ stopPolling(); syncNow(false); }   // flush a final push when leaving
+  else { syncNow(false); startPolling(); }                // pull right away on return
+});
+window.addEventListener("focus",()=>{ if(S.sync && S.sync.enabled) syncNow(false); });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
 </script>
 </body>

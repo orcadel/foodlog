@@ -1,59 +1,58 @@
-"""Generate FoodLog PWA icons (rounded green tile with a plate + fork/knife motif)."""
+"""FoodLog PWA icons — blue tile, white fork+knife angled up-to-the-right (rising-line motif)."""
 from PIL import Image, ImageDraw
 
-GREEN = (47, 143, 91)
-GREEN_DK = (33, 116, 73)
-CREAM = (245, 246, 248)
-PLATE = (255, 255, 255)
+BLUE_TOP = (37, 99, 235)    # #2563eb
+BLUE_BOT = (30, 64, 175)    # #1e40af
+WHITE = (255, 255, 255, 255)
+
 
 def rounded_tile(size, radius_frac=0.22, maskable=False):
-    """Draw at 4x then downsample for crisp anti-aliased edges."""
     s = size * 4
-    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    # background tile
-    pad = int(s * 0.10) if maskable else 0   # maskable needs safe padding
+    pad = int(s * 0.10) if maskable else 0
     r = int((s - 2 * pad) * radius_frac)
-    # vertical gradient green
+
+    # vertical blue gradient
+    grad = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grad)
     for y in range(pad, s - pad):
         t = (y - pad) / max(1, (s - 2 * pad))
-        col = tuple(int(GREEN[i] + (GREEN_DK[i] - GREEN[i]) * t) for i in range(3))
-        d.line([(pad, y), (s - pad, y)], fill=col + (255,))
-    # round the corners by masking
+        col = tuple(int(BLUE_TOP[i] + (BLUE_BOT[i] - BLUE_TOP[i]) * t) for i in range(3))
+        gd.line([(pad, y), (s - pad, y)], fill=col + (255,))
     mask = Image.new("L", (s, s), 0)
-    md = ImageDraw.Draw(mask)
-    md.rounded_rectangle([pad, pad, s - pad, s - pad], radius=r, fill=255)
-    bg = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-    bg.paste(img, (0, 0), mask)
+    ImageDraw.Draw(mask).rounded_rectangle([pad, pad, s - pad, s - pad], radius=r, fill=255)
+    tile = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    tile.paste(grad, (0, 0), mask)
 
-    d = ImageDraw.Draw(bg)
-    cx, cy = s // 2, int(s * 0.52)
-    inner = s - 2 * pad
-    R = int(inner * 0.205)      # plate radius (reduced)
-    rr = int(inner * 0.27)      # placement reference so cutlery stays near the edges
-    # plate
-    d.ellipse([cx - R, cy - R, cx + R, cy + R], fill=PLATE + (255,))
-    d.ellipse([cx - int(R*0.74), cy - int(R*0.74), cx + int(R*0.74), cy + int(R*0.74)],
-              outline=(225, 232, 228, 255), width=max(2, s // 220))
-    # fork (left) and knife (right), near-black, flanking the plate
-    fw = max(3, int(s * 0.012))
-    fork_x = cx - int(rr * 1.55)
-    knife_x = cx + int(rr * 1.55)
-    top = cy - int(rr * 1.15); bot = cy + int(rr * 1.15)
-    g = (22, 24, 28, 255)       # near-black cutlery
-    # fork stem + tines
-    d.rounded_rectangle([fork_x - fw, cy - int(rr*0.1), fork_x + fw, bot], radius=fw, fill=g)
-    for off in (-int(s*0.022), 0, int(s*0.022)):
-        d.rounded_rectangle([fork_x + off - max(2,fw//2), top, fork_x + off + max(2,fw//2), cy - int(rr*0.1)],
-                            radius=fw//2, fill=g)
-    d.rounded_rectangle([fork_x - int(s*0.03), cy - int(rr*0.18), fork_x + int(s*0.03), cy - int(rr*0.02)],
-                        radius=fw, fill=g)
-    # knife
-    d.rounded_rectangle([knife_x - fw, top, knife_x + fw, bot], radius=fw, fill=g)
-    d.polygon([(knife_x - int(s*0.028), top), (knife_x + fw, top),
-               (knife_x + fw, cy - int(rr*0.1)), (knife_x - int(s*0.028), cy - int(rr*0.1))], fill=g)
+    # --- utensils drawn pointing UP, centered, then rotated to point up-right ---
+    uten = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(uten)
+    cx, cy = s // 2, s // 2
+    top = int(s * 0.26)
+    bot = int(s * 0.74)
+    midY = int(top + 0.34 * (bot - top))   # where tines/blade meet the handle
+    fw = max(4, int(s * 0.020))            # stroke half-width-ish
+    gap = int(s * 0.095)
+    fx, kx = cx - gap, cx + gap
 
-    return bg.resize((size, size), Image.LANCZOS)
+    # Fork: handle + 3 tines + bridge
+    d.rounded_rectangle([fx - fw, midY, fx + fw, bot], radius=fw, fill=WHITE)
+    for off in (-int(s * 0.034), 0, int(s * 0.034)):
+        d.rounded_rectangle([fx + off - max(2, fw // 2), top, fx + off + max(2, fw // 2), midY],
+                            radius=fw // 2, fill=WHITE)
+    d.rounded_rectangle([fx - int(s * 0.05), midY - fw, fx + int(s * 0.05), midY + fw],
+                        radius=fw, fill=WHITE)
+
+    # Knife: handle + blade (point up)
+    d.rounded_rectangle([kx - fw, midY, kx + fw, bot], radius=fw, fill=WHITE)
+    d.polygon([(kx + fw, top), (kx + fw, midY), (kx - int(s * 0.034), midY)], fill=WHITE)
+    d.ellipse([kx + fw - 1, top - 1, kx + fw + 1, top + 1], fill=WHITE)  # round the tip
+
+    # rotate clockwise so the utensils face up-to-the-right (rising-line look)
+    uten = uten.rotate(-35, resample=Image.BICUBIC, center=(cx, cy))
+    tile.alpha_composite(uten)
+
+    return tile.resize((size, size), Image.LANCZOS)
+
 
 for size, name in [(180, "icon-180.png"), (192, "icon-192.png"), (512, "icon-512.png")]:
     rounded_tile(size).save(name)
