@@ -1,0 +1,10 @@
+name = "foodlog-sync"
+main = "worker.js"
+compatibility_date = "2026-06-01"
+
+# The KV namespace id is filled in during deploy:
+#   npx wrangler kv namespace create SYNC
+# then paste the returned id below.
+kv_namespaces = [
+  { binding = "SYNC", id = "2ebe46eec71e4fe087229a2c4d50c847" }
+]

@@ -321,6 +321,22 @@
     </div>
 
     <div class="card">
+      <h2 class="title">Sync across devices</h2>
+      <div class="set-row">
+        <div><div class="l">Enable sync</div><div class="d">End-to-end encrypted. Use the <b>same passphrase</b> on every device.</div></div>
+        <div class="toggle" id="togSync"><i></i></div>
+      </div>
+      <div id="syncWrap">
+        <label class="fl">Sync passphrase</label>
+        <input class="f" id="setPass" type="password" placeholder="a long secret phrase" autocomplete="off">
+        <div class="hint">Your data is encrypted with this <b>before</b> it leaves the device — the server can never read it. If you lose this passphrase, synced data can't be recovered. Make it long and memorable.</div>
+        <div style="height:10px"></div>
+        <button class="btn ghost" id="btnSyncNow">Sync now</button>
+        <div class="camstatus" id="syncStatus" style="text-align:left"></div>
+      </div>
+    </div>
+
+    <div class="card">
       <h2 class="title">Your data</h2>
       <div class="hint">Everything lives in this browser on this device. No account, no server. Export to back up or move devices.</div>
       <div style="height:8px"></div>
@@ -394,6 +410,9 @@ const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
+  deleted:[],        // tombstones: ids of removed log entries (for sync)
+  updatedAt:0,       // last local change (ms) — drives sync merge
+  sync:{enabled:false, passphrase:"", lastSync:0},
 };
 const KEY="foodlog.v1";
 let S = load();
@@ -404,8 +423,18 @@ function load(){
   seed.weights=[{date:today(),lb:215}];
   return seed;
 }
-function migrate(r){ r.settings=Object.assign({},DEFAULTS.settings,r.settings); return r; }
-function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+function migrate(r){
+  r.settings=Object.assign({},DEFAULTS.settings,r.settings);
+  r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0}, r.sync||{});
+  r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0;
+  return r;
+}
+let _applyingRemote=false, _pushTimer=null;
+function save(){
+  if(!_applyingRemote) S.updatedAt=Date.now();
+  localStorage.setItem(KEY, JSON.stringify(S));
+  if(!_applyingRemote && S.sync && S.sync.enabled && SYNC_ENDPOINT) queuePush();
+}
 
 /* ---------- date helpers ---------- */
 let cursor = today();
@@ -524,6 +553,10 @@ function renderSettings(){
   $("#setKey").value=S.settings.apiKey;
   $("#togPhoto").classList.toggle("on",S.settings.photoEnabled);
   $("#apiWrap").classList.toggle("hidden",!S.settings.photoEnabled);
+  $("#togSync").classList.toggle("on",S.sync.enabled);
+  $("#syncWrap").classList.toggle("hidden",!S.sync.enabled);
+  $("#setPass").value=S.sync.passphrase||"";
+  setSyncStatus(S.sync.lastSync? "Last synced "+new Date(S.sync.lastSync).toLocaleString() : (S.sync.enabled?"Not synced yet — tap Sync now":""));
 }
 
 /* ---------- tabs ---------- */
@@ -599,7 +632,7 @@ $("#saveFood").onclick=()=>{
 /* delegated: add buttons + deletes */
 $("#mealsCard").addEventListener("click",e=>{
   const add=e.target.closest(".additem"); if(add){ openSheet(add.dataset.meal); return; }
-  const del=e.target.closest(".del"); if(del){ S.log=S.log.filter(x=>x.id!==del.dataset.id); save(); renderToday(); }
+  const del=e.target.closest(".del"); if(del){ S.deleted=S.deleted||[]; S.deleted.push(del.dataset.id); S.log=S.log.filter(x=>x.id!==del.dataset.id); save(); renderToday(); }
 });
 
 /* ---------- PHOTO recognition ---------- */
@@ -683,6 +716,75 @@ $("#setGender").onchange=e=>{ S.settings.gender=e.target.value; save(); };
 $("#setAct").onchange=e=>{ S.settings.activity=e.target.value; save(); };
 const updHeight=()=>{ const ft=parseInt($("#setHft").value)||0, inch=parseInt($("#setHin").value)||0; const t=ft*12+inch; S.settings.heightIn=t>0?t:null; save(); };
 $("#setHft").onchange=updHeight; $("#setHin").onchange=updHeight;
+
+/* ---------- SYNC: end-to-end encrypted (Cloudflare Worker) ---------- */
+const SYNC_ENDPOINT="https://foodlog-sync.dtgruner.workers.dev";   // Cloudflare Worker (E2E-encrypted blob store)
+const _enc=new TextEncoder(), _dec=new TextDecoder();
+function _b64(buf){ let s=""; const a=new Uint8Array(buf); for(let i=0;i<a.length;i++) s+=String.fromCharCode(a[i]); return btoa(s); }
+function _unb64(s){ return Uint8Array.from(atob(s),c=>c.charCodeAt(0)); }
+async function _sha256hex(str){ const h=await crypto.subtle.digest("SHA-256",_enc.encode(str)); return [...new Uint8Array(h)].map(b=>b.toString(16).padStart(2,"0")).join(""); }
+async function syncId(pass){ return _sha256hex("foodlog-id-v1:"+pass); }
+async function deriveKey(pass){
+  const base=await crypto.subtle.importKey("raw",_enc.encode(pass),"PBKDF2",false,["deriveKey"]);
+  return crypto.subtle.deriveKey({name:"PBKDF2",salt:_enc.encode("foodlog-enc-v1"),iterations:120000,hash:"SHA-256"},
+    base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
+}
+function syncable(){ const s=structuredClone(S); delete s.sync; if(s.settings) delete s.settings.apiKey; return s; }
+async function encryptState(obj,key){
+  const iv=crypto.getRandomValues(new Uint8Array(12));
+  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,_enc.encode(JSON.stringify(obj)));
+  return JSON.stringify({v:1,iv:_b64(iv),ct:_b64(ct)});
+}
+async function decryptBlob(text,key){
+  const o=JSON.parse(text);
+  const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:_unb64(o.iv)},key,_unb64(o.ct));
+  return JSON.parse(_dec.decode(pt));
+}
+function mergeRemote(r){
+  const localNewer=(S.updatedAt||0)>=(r.updatedAt||0);
+  const newer=localNewer?S:r, older=localNewer?r:S;
+  const deleted=new Set([...(S.deleted||[]),...(r.deleted||[])]);
+  const byId={}; [...(older.log||[]),...(newer.log||[])].forEach(x=>byId[x.id]=x);   // newer wins on conflict
+  const log=Object.values(byId).filter(x=>!deleted.has(x.id));
+  const wd={}; [...(older.weights||[]),...(newer.weights||[])].forEach(w=>wd[w.date]=w);
+  const settings=Object.assign({},DEFAULTS.settings,newer.settings);
+  settings.apiKey=S.settings.apiKey;                                                 // keep local API key, never sync it
+  return {settings, log, weights:Object.values(wd), deleted:[...deleted],
+          updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync};
+}
+function setSyncStatus(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }
+function rerenderCurrent(){
+  const on=document.querySelector("nav.tabs button.on"); const t=on?on.dataset.tab:"today";
+  if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn")renderLearn(); else if(t==="settings")renderSettings();
+}
+let _busy=false;
+async function syncNow(showToast){
+  if(!S.sync || !S.sync.enabled || !S.sync.passphrase || !SYNC_ENDPOINT || _busy) return;
+  _busy=true; setSyncStatus("Syncing…");
+  try{
+    const id=await syncId(S.sync.passphrase), key=await deriveKey(S.sync.passphrase);
+    const res=await fetch(SYNC_ENDPOINT+"?id="+id);
+    if(res.ok){ const txt=(await res.text()).trim(); if(txt){
+      const remote=await decryptBlob(txt,key);
+      _applyingRemote=true; S=mergeRemote(remote); save(); _applyingRemote=false;
+      rerenderCurrent();
+    }}
+    const body=await encryptState(syncable(),key);
+    await fetch(SYNC_ENDPOINT+"?id="+id,{method:"PUT",headers:{"Content-Type":"application/json"},body});
+    _applyingRemote=true; S.sync.lastSync=Date.now(); save(); _applyingRemote=false;
+    setSyncStatus("Synced "+new Date(S.sync.lastSync).toLocaleTimeString());
+    if(showToast) toast("Synced");
+  }catch(e){ setSyncStatus("Sync error — check your passphrase and connection"); if(showToast) toast("Sync failed"); }
+  _busy=false;
+}
+function queuePush(){ clearTimeout(_pushTimer); _pushTimer=setTimeout(()=>syncNow(false), 1500); }
+
+$("#togSync").onclick=()=>{
+  S.sync.enabled=!S.sync.enabled; save(); renderSettings();
+  if(S.sync.enabled){ if(!SYNC_ENDPOINT) toast("Sync server not connected yet"); else if(!S.sync.passphrase) toast("Set a passphrase, then Sync now"); else syncNow(true); }
+};
+$("#setPass").onchange=e=>{ S.sync.passphrase=e.target.value.trim(); save(); };
+$("#btnSyncNow").onclick=()=>{ if(!S.sync.passphrase){ toast("Enter a passphrase first"); return; } syncNow(true); };
 
 /* ---------- LEARN: intake calculator ---------- */
 function latestWeightLb(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); return w.length? w[w.length-1].lb : S.settings.startWeight; }
@@ -789,6 +891,8 @@ function toast(msg){ const t=$("#toast"); t.textContent=msg; t.classList.add("sh
 
 /* ---------- init ---------- */
 buildCats(); renderToday();
+if(S.sync && S.sync.enabled) syncNow(false);
+document.addEventListener("visibilitychange",()=>{ if(!document.hidden && S.sync && S.sync.enabled) syncNow(false); });
 if("serviceWorker" in navigator){ navigator.serviceWorker.register("sw.js").catch(()=>{}); }
 </script>
 </body>
