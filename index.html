@@ -335,11 +335,7 @@
         <div><div class="l">Smart photo add</div><div class="d">Snap a meal; AI estimates calories &amp; macros. When off, the camera button is hidden and nothing leaves your phone.</div></div>
         <div class="toggle" id="togPhoto"><i></i></div>
       </div>
-      <div id="apiWrap">
-        <label class="fl">Anthropic API key</label>
-        <input class="f" id="setKey" type="password" placeholder="sk-ant-..." autocomplete="off">
-        <div class="hint">Stored only on this device. Used to send photos to Claude for estimation. ~1¢ per photo, billed by Anthropic (separate from any Claude subscription). Get a key at console.anthropic.com.</div>
-      </div>
+      <div class="hint">No setup needed — photo analysis runs through FoodLog's own secure service (no API key to enter). When off, the camera button is hidden and nothing leaves your phone.</div>
     </div>
 
     <div class="card">
@@ -650,9 +646,7 @@ function renderSettings(){
   $("#setWater").value=S.settings.waterGoal;
   $("#setStart").value=S.settings.startWeight;
   $("#setGoal").value=S.settings.goalWeight;
-  $("#setKey").value=S.settings.apiKey;
   $("#togPhoto").classList.toggle("on",S.settings.photoEnabled);
-  $("#apiWrap").classList.toggle("hidden",!S.settings.photoEnabled);
   const rem=S.settings.reminders||{};
   $("#togRem").classList.toggle("on",!!rem.enabled);
   $("#remWrap").classList.toggle("hidden",!rem.enabled);
@@ -758,10 +752,7 @@ $("#mealsCard").addEventListener("click",e=>{
 });
 
 /* ---------- PHOTO recognition ---------- */
-$("#camBtn").onclick=()=>{
-  if(!S.settings.apiKey){ $("#camStatus").className="camstatus err"; $("#camStatus").textContent="Add your API key in Settings first."; return; }
-  $("#camInput").click();
-};
+$("#camBtn").onclick=()=>{ $("#camInput").click(); };
 $("#camInput").onchange=async e=>{
   const file=e.target.files[0]; e.target.value="";
   if(!file) return;
@@ -799,30 +790,18 @@ function downscale(file){
   });
 }
 async function analyzePhoto(b64,mime){
-  const prompt='You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string), calories (integer), protein_g (number), carbs_g (number), fat_g (number), category (exactly one of: Protein, Vegetables, Fruit, Carbs, Fats, Treats), portion (short string like "1 bowl"). If several foods are on one plate, combine them into a single entry that sums the plate.';
-  const r=await fetch("https://api.anthropic.com/v1/messages",{
-    method:"POST",
-    headers:{
-      "content-type":"application/json",
-      "x-api-key":S.settings.apiKey,
-      "anthropic-version":"2023-06-01",
-      "anthropic-dangerous-direct-browser-access":"true"
-    },
-    body:JSON.stringify({
-      model:S.settings.model, max_tokens:512,
-      messages:[{role:"user",content:[
-        {type:"image",source:{type:"base64",media_type:mime,data:b64}},
-        {type:"text",text:prompt}
-      ]}]
-    })
+  const r=await fetch("https://foodlog-sync.dtgruner.workers.dev/vision",{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({image:b64, mime})
   });
   if(!r.ok){
-    let m="HTTP "+r.status; try{const j=await r.json(); m=(j.error&&j.error.message)||m;}catch(e){}
-    if(r.status===401) m="invalid API key";
+    let m="HTTP "+r.status; try{const j=await r.json(); m=j.error||m;}catch(e){}
+    if(r.status===429) m="daily photo limit reached — try again tomorrow";
+    if(r.status===503) m="photo service not set up yet";
     throw new Error(m);
   }
   const j=await r.json();
-  const txt=(j.content||[]).filter(c=>c.type==="text").map(c=>c.text).join("");
+  const txt=j.text||"";
   const m=txt.match(/\{[\s\S]*\}/); if(!m) throw new Error("no estimate returned");
   return JSON.parse(m[0]);
 }
@@ -832,7 +811,6 @@ $("#togPhoto").onclick=()=>{ S.settings.photoEnabled=!S.settings.photoEnabled; s
 const bindNum=(id,key,isFloat)=>{ $(id).onchange=e=>{ const v=isFloat?parseFloat(e.target.value):parseInt(e.target.value); if(!isNaN(v)){S.settings[key]=v;save();} }; };
 bindNum("#setCal","calTarget"); bindNum("#setPro","proTarget");
 bindNum("#setStart","startWeight",1); bindNum("#setGoal","goalWeight",1); bindNum("#setWater","waterGoal");
-$("#setKey").onchange=e=>{ S.settings.apiKey=e.target.value.trim(); save(); };
 $("#setAge").onchange=e=>{ const v=parseInt(e.target.value); S.settings.age=isNaN(v)?null:v; save(); };
 $("#setGender").onchange=e=>{ S.settings.gender=e.target.value; save(); };
 $("#setAct").onchange=e=>{ S.settings.activity=e.target.value; save(); };

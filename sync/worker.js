@@ -8,6 +8,13 @@
 const VAPID_PUBLIC = "BJOEKlwXmVCrAuxVg2XYApZ_rYFfQOMn3OyRpaP4EDsZBju6b-4UIowvFCwdG4xQ8fK5WeZfGhrQOlXGUsofYV8";
 const VAPID_SUBJECT = "mailto:dtgruner@gmail.com";
 
+// Photo recognition proxy. The Anthropic key lives only as the Worker secret
+// env.ANTHROPIC_API_KEY — never in the app or the repo.
+const VISION_MODEL = "claude-sonnet-4-6";
+const MAX_VISION_PER_DAY = 200;          // hard daily spend cap (~$2/day) — the real abuse protection
+const ALLOWED_ORIGINS = ["https://orcadel.github.io"]; // add capacitor origin when the app is wrapped
+const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string), calories (integer), protein_g (number), carbs_g (number), fat_g (number), category (exactly one of: Protein, Vegetables, Fruit, Carbs, Fats, Drinks, Treats), portion (short string like "1 bowl"). If several foods are on one plate, combine them into a single entry that sums the plate.`;
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET,PUT,POST,OPTIONS",
@@ -38,6 +45,39 @@ export default {
       const body = await req.json();
       const status = await sendPush(body.subscription, JSON.stringify({ title: "FoodLog ✅", body: "Reminders are working." }), env);
       return json({ ok: status > 0 && status < 300, status });
+    }
+
+    // --- Photo recognition proxy ---
+    if (path === "/vision" && req.method === "POST") {
+      const origin = req.headers.get("Origin") || "";
+      if (origin && !ALLOWED_ORIGINS.includes(origin)) return json({ error: "forbidden origin" }, 403);
+      const day = new Date().toISOString().slice(0, 10);
+      const cntKey = "vision:count:" + day;
+      const cnt = parseInt((await env.SYNC.get(cntKey)) || "0", 10);
+      if (cnt >= MAX_VISION_PER_DAY) return json({ error: "daily photo limit reached" }, 429);
+      const body = await req.json();
+      if (!body.image || !body.mime) return json({ error: "missing image" }, 400);
+      if (!env.ANTHROPIC_API_KEY) return json({ error: "vision not configured" }, 503);
+      const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: VISION_MODEL, max_tokens: 512,
+          messages: [{ role: "user", content: [
+            { type: "image", source: { type: "base64", media_type: body.mime, data: body.image } },
+            { type: "text", text: VISION_PROMPT },
+          ] }],
+        }),
+      });
+      if (!aRes.ok) {
+        let m = "vision HTTP " + aRes.status;
+        try { const j = await aRes.json(); m = (j.error && j.error.message) || m; } catch (e) {}
+        return json({ error: m }, 502);
+      }
+      const j = await aRes.json();
+      const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+      await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 });
+      return json({ text });
     }
 
     // --- Encrypted sync blob store ---
