@@ -1,5 +1,5 @@
-/* FoodLog service worker — app-shell cache for offline use */
-const CACHE = "foodlog-v1";
+/* FoodLog service worker — network-first for fresh updates, cache fallback for offline. */
+const CACHE = "foodlog-v2";
 const ASSETS = [
   "./", "./index.html", "./manifest.json",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"
@@ -18,17 +18,16 @@ self.addEventListener("activate", e => {
 
 self.addEventListener("fetch", e => {
   const req = e.request;
-  // Never cache API calls to Anthropic.
-  if (req.url.includes("api.anthropic.com")) return;
-  if (req.method !== "GET") return;
+  if (req.method !== "GET") return;                       // never intercept PUT/POST (sync writes)
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;        // let the sync Worker + Anthropic API pass straight through
+
+  // Network-first: always try for the latest app, fall back to cache when offline.
   e.respondWith(
-    caches.match(req).then(hit => hit || fetch(req).then(res => {
-      // cache same-origin GETs as we go
-      if (res.ok && new URL(req.url).origin === self.location.origin) {
-        const copy = res.clone();
-        caches.open(CACHE).then(c => c.put(req, copy));
-      }
+    fetch(req).then(res => {
+      const copy = res.clone();
+      caches.open(CACHE).then(c => c.put(req, copy));
       return res;
-    }).catch(() => caches.match("./index.html")))
+    }).catch(() => caches.match(req).then(hit => hit || caches.match("./index.html")))
   );
 });
