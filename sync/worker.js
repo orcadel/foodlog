@@ -80,6 +80,41 @@ export default {
       return json({ text });
     }
 
+    // --- AI weekly coach ---
+    if (path === "/coach" && req.method === "POST") {
+      const origin = req.headers.get("Origin") || "";
+      if (origin && !ALLOWED_ORIGINS.includes(origin)) return json({ error: "forbidden origin" }, 403);
+      const day = new Date().toISOString().slice(0, 10);
+      const cntKey = "coach:count:" + day;
+      const cnt = parseInt((await env.SYNC.get(cntKey)) || "0", 10);
+      if (cnt >= 100) return json({ error: "daily insight limit reached" }, 429);
+      if (!env.ANTHROPIC_API_KEY) return json({ error: "vision not configured" }, 503);
+      const body = await req.json();
+      const s = body.summary || {};
+      const glp1 = !!body.glp1;
+      const userMsg = `User's last 7 days:
+- Days logged: ${s.daysLogged}/7
+- Avg calories: ${s.avgCal} (target ${s.calTarget})
+- Avg protein: ${s.avgPro} g (target ${s.proTarget} g; protein goal hit ${s.proHit}/7 days)
+- Avg water: ${s.avgWater} oz
+- Weight change this week: ${s.wChange == null ? "n/a" : s.wChange + " lb"} (current ${s.currentWeight ?? "n/a"} lb, goal ${s.goalWeight} lb)`;
+      const sys = `You are a supportive, concrete nutrition and weight-loss coach. Given a week of the user's data, write 2-4 short sentences: lead with what went well, then ONE specific thing to improve, then a brief encouraging close. Be specific to the numbers; no bullet points, no markdown, no preamble.${glp1 ? " The user takes a GLP-1 medication (appetite-suppressing). When relevant, add one GLP-1-aware tip — e.g. enough protein to preserve muscle, hydration, or not under-eating below their floor." : ""}`;
+      const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({ model: VISION_MODEL, max_tokens: 300, system: sys, messages: [{ role: "user", content: userMsg }] }),
+      });
+      if (!aRes.ok) {
+        let m = "coach HTTP " + aRes.status;
+        try { const j = await aRes.json(); m = (j.error && j.error.message) || m; } catch (e) {}
+        return json({ error: m }, 502);
+      }
+      const j = await aRes.json();
+      const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+      await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 });
+      return json({ text });
+    }
+
     // --- Encrypted sync blob store ---
     const id = url.searchParams.get("id");
     if (!id || id.length < 16 || id.length > 200) return json({ error: "bad id" }, 400);
@@ -133,7 +168,7 @@ function dueReminders(prefs, tz) {
   if (prefs.meals && at(12, 30)) out.push({ key: "lunch", title: "Lunch check-in", body: "Don't forget to log your lunch.", localDate: date });
   if (prefs.meals && at(19, 0)) out.push({ key: "dinner", title: "Dinner check-in", body: "Log your dinner in FoodLog.", localDate: date });
   if (prefs.water && at(14, 0)) out.push({ key: "water", title: "Hydration", body: "Time for some water.", localDate: date });
-  if (prefs.weekly && p.weekday === "Sun" && at(18, 0)) out.push({ key: "weekly", title: "Weekly recap", body: "See this week's summary in FoodLog.", localDate: date });
+  if (prefs.weekly && p.weekday === "Sun" && at(18, 0)) out.push({ key: "weekly", title: "Your weekly insight is ready", body: "Open FoodLog to see this week's recap and AI insight.", localDate: date });
   return out;
 }
 

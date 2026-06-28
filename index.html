@@ -166,6 +166,15 @@
   .acc-body .inner{padding:0 4px 16px;font-size:14px;line-height:1.6;color:#3a434e}
   .acc-body .inner b{color:var(--ink);font-weight:650}
   .acc-body a{color:var(--accent);font-weight:640;text-decoration:none}
+  /* weekly insight — twirl card */
+  .twirl-wrap{position:fixed;inset:0;z-index:55;display:grid;place-items:center;pointer-events:none;perspective:1300px;padding:24px}
+  .twirl-wrap.show{pointer-events:auto}
+  .twirl-card{width:min(88vw,380px);background:var(--card);border-radius:24px;box-shadow:0 24px 70px rgba(15,20,28,.4);padding:26px 24px;opacity:0;transform:rotateY(720deg) scale(.2)}
+  .twirl-wrap.show .twirl-card{animation:twirlIn .95s cubic-bezier(.18,.7,.2,1) forwards}
+  @keyframes twirlIn{0%{opacity:0;transform:rotateY(720deg) scale(.2)}55%{opacity:1}100%{opacity:1;transform:rotateY(0deg) scale(1)}}
+  .tc-eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.7px;color:var(--accent);font-weight:720;margin-bottom:10px}
+  .tc-body{font-size:16px;line-height:1.6;color:var(--ink)}
+  .tc-close{display:block;width:100%;margin-top:8px;background:none;border:none;color:var(--muted);font-weight:620;padding:8px;cursor:pointer;font-size:15px}
 </style>
 </head>
 <body>
@@ -258,6 +267,11 @@
   <!-- LEARN -->
   <section id="view-learn" class="hidden">
     <div class="card">
+      <h2 class="title">Weekly insight</h2>
+      <div class="hint" style="margin:0 0 12px">An AI recap of your week — what's working and one thing to tweak.</div>
+      <button class="btn primary" id="insightBtn">✨ Show this week's insight</button>
+    </div>
+    <div class="card">
       <h2 class="title">Your daily calorie target</h2>
       <div id="calcBox"></div>
     </div>
@@ -302,6 +316,10 @@
           <option value="moderate">Moderately active</option>
           <option value="active">Very active</option>
         </select>
+      </div>
+      <div class="set-row">
+        <div><div class="l">GLP-1 mode</div><div class="d">Adds GLP-1 resources &amp; tailors AI insights. Turn off if you're not on a GLP-1.</div></div>
+        <div class="toggle" id="togGlp1"><i></i></div>
       </div>
     </div>
 
@@ -437,19 +455,31 @@
   </div>
 </div>
 
+<!-- WEEKLY INSIGHT TWIRL CARD -->
+<div class="scrim" id="insightScrim"></div>
+<div class="twirl-wrap" id="insightWrap">
+  <div class="twirl-card" id="insightCard">
+    <div class="tc-eyebrow">This week's insight</div>
+    <div class="tc-body" id="insightText"></div>
+    <button class="btn ghost" id="insightRefresh" style="margin-top:16px">Refresh</button>
+    <button class="tc-close" id="insightClose">Done</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
 /* ---------- state ---------- */
 const CATS = ["Protein","Vegetables","Fruit","Carbs","Fats","Drinks","Treats"];
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
   water:{},          // {date: oz}
   deleted:[],        // tombstones: ids of removed log entries (for sync)
   updatedAt:0,       // last local change (ms) — drives sync merge
-  sync:{enabled:false, passphrase:"", lastSync:0},
+  insight:null,      // cached AI weekly insight {text, week, ts} (device-local)
+  sync:{enabled:false, passphrase:"", lastSync:0, lastPushedAt:0},
 };
 const KEY="foodlog.v1";
 let S = load();
@@ -463,8 +493,8 @@ function load(){
 function migrate(r){
   r.settings=Object.assign({},DEFAULTS.settings,r.settings);
   r.settings.reminders=Object.assign({enabled:false,meals:true,water:true,weighin:true,weekly:true}, r.settings.reminders||{});
-  r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0}, r.sync||{});
-  r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{};
+  r.sync=Object.assign({enabled:false,passphrase:"",lastSync:0,lastPushedAt:0}, r.sync||{});
+  r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{}; r.insight=r.insight||null;
   return r;
 }
 let _applyingRemote=false, _pushTimer=null;
@@ -641,6 +671,7 @@ function renderSettings(){
   $("#setHft").value=S.settings.heightIn?Math.floor(S.settings.heightIn/12):"";
   $("#setHin").value=S.settings.heightIn?S.settings.heightIn%12:"";
   $("#setAct").value=S.settings.activity;
+  $("#togGlp1").classList.toggle("on",S.settings.glp1!==false);
   $("#setCal").value=S.settings.calTarget;
   $("#setPro").value=S.settings.proTarget;
   $("#setWater").value=S.settings.waterGoal;
@@ -829,7 +860,7 @@ async function deriveKey(pass){
   return crypto.subtle.deriveKey({name:"PBKDF2",salt:_enc.encode("foodlog-enc-v1"),iterations:120000,hash:"SHA-256"},
     base,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
 }
-function syncable(){ const s=structuredClone(S); delete s.sync; if(s.settings){ delete s.settings.apiKey; delete s.settings.reminders; } return s; }
+function syncable(){ const s=structuredClone(S); delete s.sync; delete s.insight; if(s.settings){ delete s.settings.apiKey; delete s.settings.reminders; } return s; }
 async function encryptState(obj,key){
   const iv=crypto.getRandomValues(new Uint8Array(12));
   const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv},key,_enc.encode(JSON.stringify(obj)));
@@ -852,7 +883,7 @@ function mergeRemote(r){
   settings.reminders=S.settings.reminders;                                           // reminders are device-local
   const water=Object.assign({}, older.water||{}, newer.water||{});
   return {settings, log, weights:Object.values(wd), water, deleted:[...deleted],
-          updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync};
+          updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync, insight:S.insight};
 }
 function setSyncStatus(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }
 function rerenderCurrent(){
@@ -865,16 +896,19 @@ async function syncNow(showToast){
   _busy=true; setSyncStatus("Syncing…");
   try{
     const id=await syncId(S.sync.passphrase), key=await deriveKey(S.sync.passphrase);
-    const res=await fetch(SYNC_ENDPOINT+"?id="+id);
+    const needPush=(S.updatedAt||0) > (S.sync.lastPushedAt||0);     // only write KV when we have new local changes
+    const res=await fetch(SYNC_ENDPOINT+"?id="+id);                 // pull (read) every time — reads are cheap
     if(res.ok){ const txt=(await res.text()).trim(); if(txt){
       const remote=await decryptBlob(txt,key);
-      _applyingRemote=true; S=mergeRemote(remote); save(); _applyingRemote=false;
+      _applyingRemote=true; S=mergeRemote(remote); _applyingRemote=false;
       rerenderCurrent();
     }}
-    const body=await encryptState(syncable(),key);
-    await fetch(SYNC_ENDPOINT+"?id="+id,{method:"PUT",headers:{"Content-Type":"application/json"},body});
-    _applyingRemote=true; S.sync.lastSync=Date.now(); save(); _applyingRemote=false;
-    setSyncStatus("Synced "+new Date(S.sync.lastSync).toLocaleTimeString());
+    if(needPush){
+      const body=await encryptState(syncable(),key);
+      await fetch(SYNC_ENDPOINT+"?id="+id,{method:"PUT",headers:{"Content-Type":"application/json"},body});
+    }
+    _applyingRemote=true; S.sync.lastPushedAt=S.updatedAt||0; S.sync.lastSync=Date.now(); save(); _applyingRemote=false;
+    setSyncStatus((needPush?"Synced ":"Up to date · ")+new Date(S.sync.lastSync).toLocaleTimeString());
     if(showToast) toast("Synced");
   }catch(e){ setSyncStatus("Sync error — check your passphrase and connection"); if(showToast) toast("Sync failed"); }
   _busy=false;
@@ -975,6 +1009,20 @@ const ARTICLES=[
   url:"https://nutritionsource.hsph.harvard.edu/water/",
   body:`GLP-1 medications blunt thirst as well as appetite, so it's easy to under-drink without noticing. Sip water steadily through the day. To keep <b>nausea</b> down: eat smaller, slower meals, stop at comfortably full, and go easy on greasy or very sweet foods. If <b>constipation</b> appears, lean harder on fiber and fluids.`},
 ];
+const GLP1_ARTICLES=[
+ {t:"On a GLP-1: eat enough", link:"Harvard: Healthy Weight",
+  url:"https://nutritionsource.hsph.harvard.edu/healthy-weight/",
+  body:`Appetite suppression makes it easy to drift <b>too low</b>. Under-eating costs muscle and energy and can stall progress. Aim for your recommended calorie floor, anchor each day with protein, and don't skip meals just because hunger is quiet.`},
+ {t:"On a GLP-1: ease nausea & constipation", link:"Harvard: Fiber",
+  url:"https://nutritionsource.hsph.harvard.edu/carbohydrates/fiber/",
+  body:`For <b>nausea</b>: smaller, slower meals, stop at comfortably full, and go easy on greasy or very sweet foods. For <b>constipation</b> (common on GLP-1s): lean on fiber-rich vegetables, fruit, and beans, plus steady fluids.`},
+ {t:"On a GLP-1: protect your muscle", link:"Harvard: Protein",
+  url:"https://nutritionsource.hsph.harvard.edu/what-should-you-eat/protein/",
+  body:`In a deficit your body can burn muscle along with fat. Hit roughly <b>0.7–1 g of protein per pound</b> of body weight and add some resistance training, so most of what you lose is fat, not lean mass.`},
+ {t:"On a GLP-1: hydrate", link:"Harvard: Water",
+  url:"https://nutritionsource.hsph.harvard.edu/water/",
+  body:`These medications blunt thirst, so it's easy to under-drink. Sip water through the day — it supports energy and digestion and helps with constipation.`},
+];
 function renderLearn(){
   const box=$("#calcBox"), r=computeIntake();
   if(!r){
@@ -999,7 +1047,8 @@ function renderLearn(){
     $("#useTarget").onclick=()=>{ S.settings.calTarget=r.moderate; save(); toast("Target set to "+r.moderate); renderLearn(); };
   }
   const host=$("#articles"); host.innerHTML="";
-  ARTICLES.forEach(a=>{
+  const list=ARTICLES.concat(S.settings.glp1!==false ? GLP1_ARTICLES : []);
+  list.forEach(a=>{
     const it=document.createElement("div"); it.className="acc-item";
     it.innerHTML=`<div class="acc-head"><span>${a.t}</span><span class="chev">›</span></div>
       <div class="acc-body"><div class="inner">${a.body}<div style="height:12px"></div>
@@ -1012,6 +1061,55 @@ function renderLearn(){
     host.appendChild(it);
   });
 }
+
+/* ---------- WEEKLY INSIGHT (AI coach) ---------- */
+function weekKey(){ const d=parseYmd(today()); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return ymd(d); }
+function getWeekStats(){
+  const days=[]; for(let i=0;i<7;i++) days.push(shiftDay(today(),-i));
+  const logged=days.filter(d=>S.log.some(x=>x.date===d));
+  const dayCal=d=>S.log.filter(x=>x.date===d).reduce((a,x)=>a+(+x.cal||0),0);
+  const dayPro=d=>S.log.filter(x=>x.date===d).reduce((a,x)=>a+(+x.pro||0),0);
+  const avgCal=logged.length?Math.round(logged.reduce((a,d)=>a+dayCal(d),0)/logged.length):0;
+  const avgPro=logged.length?Math.round(logged.reduce((a,d)=>a+dayPro(d),0)/logged.length):0;
+  const proHit=logged.filter(d=>dayPro(d)>=S.settings.proTarget).length;
+  const avgWater=Math.round(days.reduce((a,d)=>a+(S.water[d]||0),0)/7);
+  const wk=[...S.weights].filter(x=>x.date>shiftDay(today(),-8)).sort((a,b)=>a.date<b.date?-1:1);
+  const wChange=wk.length>=2?+(wk[wk.length-1].lb-wk[0].lb).toFixed(1):null;
+  const allW=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  return {daysLogged:logged.length, avgCal, avgPro, proHit, avgWater, wChange, calTarget:S.settings.calTarget, proTarget:S.settings.proTarget, goalWeight:S.settings.goalWeight, currentWeight:allW.length?allW[allW.length-1].lb:null};
+}
+async function generateInsight(force){
+  const wk=weekKey();
+  if(!force && S.insight && S.insight.week===wk && S.insight.text) return S.insight.text;
+  const r=await fetch("https://foodlog-sync.dtgruner.workers.dev/coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({summary:getWeekStats(), glp1:S.settings.glp1!==false})});
+  if(!r.ok){ let m="HTTP "+r.status; try{const j=await r.json(); m=j.error||m;}catch(e){} if(r.status===503) m="insight service not set up yet"; throw new Error(m); }
+  const j=await r.json(); const text=(j.text||"").trim();
+  if(!text) throw new Error("no insight returned");
+  S.insight={text, week:wk, ts:Date.now()}; save();
+  return text;
+}
+function showInsight(text){
+  $("#insightText").textContent=text;
+  $("#insightScrim").classList.add("show");
+  const wrap=$("#insightWrap"); wrap.classList.remove("show"); void wrap.offsetWidth; wrap.classList.add("show");
+}
+function hideInsight(){ $("#insightScrim").classList.remove("show"); $("#insightWrap").classList.remove("show"); }
+$("#insightScrim").onclick=hideInsight;
+$("#insightWrap").onclick=e=>{ if(e.target.id==="insightWrap") hideInsight(); };
+$("#insightClose").onclick=hideInsight;
+$("#insightBtn").onclick=async ()=>{
+  const b=$("#insightBtn"); const orig=b.textContent; b.textContent="Thinking…"; b.disabled=true;
+  try{ const t=await generateInsight(false); showInsight(t); }
+  catch(e){ toast("Insight failed — "+(e.message||"try again")); }
+  b.textContent=orig; b.disabled=false;
+};
+$("#insightRefresh").onclick=async ()=>{
+  const b=$("#insightRefresh"); b.textContent="Refreshing…"; b.disabled=true;
+  try{ const t=await generateInsight(true); $("#insightText").textContent=t; }
+  catch(e){ toast("Refresh failed"); }
+  b.textContent="Refresh"; b.disabled=false;
+};
+$("#togGlp1").onclick=()=>{ S.settings.glp1=!S.settings.glp1; save(); renderSettings(); };
 
 /* ---------- weight handlers ---------- */
 $("#wDate").value=today();
