@@ -68,7 +68,7 @@
   .meal-head .name{font-weight:650;font-size:15px}
   .meal-head .cal{font-size:13px;color:var(--muted);font-weight:560}
   .additem{font-size:13px;color:var(--accent);font-weight:650;background:none;border:none;cursor:pointer;padding:4px}
-  .items{display:flex;flex-direction:column;gap:1px}
+  .items{display:flex;flex-direction:column;gap:8px}
   .item{display:flex;align-items:center;gap:11px;background:var(--card);padding:11px 6px;border-top:1px solid var(--line);cursor:pointer}
   .item:active{background:var(--press)}
   .item:first-child{border-top:none}
@@ -191,6 +191,25 @@
   .onb-emoji{font-size:42px;text-align:center}
   .onb h2{font-size:24px;font-weight:740;letter-spacing:-.4px;text-align:center;margin:10px 0 6px}
   .onb-sub{font-size:14px;color:var(--muted);text-align:center;line-height:1.5;margin:0 0 14px}
+  .macros{display:flex;gap:6px;margin-top:8px}
+  .mchip{flex:1;background:var(--soft);border:none;border-radius:11px;padding:8px 3px;text-align:center;cursor:pointer;color:var(--ink)}
+  .mchip.on{background:var(--accent);color:#fff}
+  .mchip .v{font-weight:680;font-size:14px}
+  .mchip .k{font-size:9.5px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.3px}
+  .mchip.on .k{color:rgba(255,255,255,.85)}
+  .macro-detail{max-height:0;overflow:hidden;transition:max-height .28s ease}
+  .macro-detail.open{max-height:600px;margin-top:8px}
+  .macro-detail .mrow{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:8px 4px;border-top:1px solid var(--line)}
+  .macro-detail .mrow:first-child{border-top:none}
+  .macro-detail .mrow .k{color:var(--muted)}
+  .item-card{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:14px;cursor:pointer;border-left:4px solid var(--cat-Other)}
+  .item-card:active{filter:brightness(.97)}
+  .item-emoji{font-size:20px;flex:0 0 auto;line-height:1}
+  .item-card .nm{flex:1;min-width:0}
+  .item-card .nm .t{font-size:14.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item-card .nm .s{font-size:11.5px;color:var(--muted);margin-top:1px;text-transform:capitalize}
+  .item-card .kc{font-weight:700;font-size:14px;background:var(--card);border-radius:9px;padding:3px 9px}
+  .item-card .del{border:none;background:none;color:var(--muted);font-size:16px;padding:2px;cursor:pointer;opacity:.6}
 </style>
 </head>
 <body>
@@ -224,17 +243,16 @@
         <div class="stats">
           <div class="statline"><span class="k">Target</span><span class="v" id="sTarget">1700</span></div>
           <div class="statline"><span class="k">Remaining</span><span class="v" id="sRemain">1700</span></div>
-          <div>
-            <div class="statline"><span class="k">Protein</span><span class="v" id="sProtein">0 / 150 g</span></div>
-            <div class="bar"><i id="proteinBar" style="width:0%"></i></div>
-          </div>
         </div>
       </div>
-      <div class="macro-mini">
-        <div class="chip-macro"><div class="v" id="mCarb">0g</div><div class="k">Carbs</div></div>
-        <div class="chip-macro"><div class="v" id="mFat">0g</div><div class="k">Fat</div></div>
-        <div class="chip-macro"><div class="v" id="mItems">0</div><div class="k">Items</div></div>
+      <div class="macros" id="macroRow">
+        <button class="mchip" data-macro="pro"><div class="v" id="mPro">0g</div><div class="k">Protein</div></button>
+        <button class="mchip" data-macro="carb"><div class="v" id="mCarb">0g</div><div class="k">Carbs</div></button>
+        <button class="mchip" data-macro="fat"><div class="v" id="mFat">0g</div><div class="k">Fat</div></button>
+        <button class="mchip" data-macro="sugar"><div class="v" id="mSugar">0g</div><div class="k">Sugar</div></button>
+        <button class="mchip" data-macro="items"><div class="v" id="mItems">0</div><div class="k">Items</div></button>
       </div>
+      <div id="macroDetail" class="macro-detail"></div>
       <div id="ringLegend" style="display:flex;flex-wrap:wrap;gap:9px 14px;margin-top:13px"></div>
     </div>
 
@@ -244,10 +262,11 @@
         <span id="waterAmt" style="font-size:13px;color:var(--muted);font-weight:600"></span>
       </div>
       <div class="bar" style="height:10px"><i id="waterBar" style="width:0%;background:#18a0b8"></i></div>
-      <div style="display:flex;gap:8px;margin-top:13px">
-        <button class="btn ghost" id="waterCup" style="flex:1">+ Cup · 8 oz</button>
-        <button class="btn ghost" id="water16" style="flex:1">+ 16 oz</button>
-        <button class="btn ghost" id="waterMinus" style="flex:0 0 56px">−</button>
+      <div style="display:flex;gap:7px;margin-top:13px">
+        <button class="btn ghost" id="water8" style="flex:1">+8</button>
+        <button class="btn ghost" id="water12" style="flex:1">+12</button>
+        <button class="btn ghost" id="water16" style="flex:1">+16</button>
+        <button class="btn ghost" id="waterMinus" style="flex:0 0 46px">−</button>
       </div>
     </div>
 
@@ -431,7 +450,7 @@
 </main>
 
 <nav class="tabs">
-  <button data-tab="today" class="on"><span class="ic">◎</span>Today</button>
+  <button data-tab="today" class="on"><span class="ic" style="color:#f2b307">★</span>Today</button>
   <button data-tab="weight"><span class="ic">↗</span>Weight</button>
   <button data-tab="learn"><span class="ic">ⓘ</span>Learn</button>
   <button data-tab="settings"><span class="ic">⚙</span>Settings</button>
@@ -464,12 +483,13 @@
   <label class="fl">Food type</label>
   <div class="cats" id="catRow"></div>
 
-  <button class="morelink" id="moreMacros">+ protein / carbs / fat</button>
+  <button class="morelink" id="moreMacros">+ protein / carbs / fat / sugar</button>
   <div class="macro-fields" id="macroFields">
     <div class="row2">
       <div><label class="fl">Protein</label><input class="f" id="fPro" type="number" inputmode="decimal" placeholder="g"></div>
       <div><label class="fl">Carbs</label><input class="f" id="fCarb" type="number" inputmode="decimal" placeholder="g"></div>
       <div><label class="fl">Fat</label><input class="f" id="fFat" type="number" inputmode="decimal" placeholder="g"></div>
+      <div><label class="fl">Sugar</label><input class="f" id="fSugar" type="number" inputmode="decimal" placeholder="g"></div>
     </div>
   </div>
 
@@ -524,8 +544,9 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=23;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=24;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
+const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
@@ -626,11 +647,12 @@ function renderToday(){
   const rem=tgt-eaten;
   $("#sRemain").textContent = rem>=0? rem : "+"+(-rem)+" over";
   $("#sRemain").style.color = rem>=0? "" : "var(--danger)";
-  $("#sProtein").textContent = Math.round(pro)+" / "+proT+" g";
-  $("#proteinBar").style.width = Math.min(pro/proT*100,100)+"%";
+  $("#mPro").textContent=Math.round(pro)+"g";
   $("#mCarb").textContent=Math.round(carb)+"g";
   $("#mFat").textContent=Math.round(fat)+"g";
+  $("#mSugar").textContent=Math.round(items.reduce((a,x)=>a+(+x.sugar||0),0))+"g";
   $("#mItems").textContent=items.length;
+  renderMacroDetail();
   updateWaterCard();
 
   // meals
@@ -647,9 +669,12 @@ function renderToday(){
     const list=document.createElement("div"); list.className="items";
     if(mi.length===0){ const e=document.createElement("div"); e.className="empty"; e.textContent="Nothing yet"; list.appendChild(e); }
     mi.forEach(x=>{
-      const row=document.createElement("div"); row.className="item"; row.dataset.id=x.id;
-      const sub=[x.cat, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
-      row.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Other'})"></span>
+      const c=CATS.includes(x.cat)?x.cat:"Other";
+      const row=document.createElement("div"); row.className="item-card"; row.dataset.id=x.id;
+      row.style.background="color-mix(in srgb, var(--cat-"+c+") 13%, var(--card))";
+      row.style.borderLeftColor="var(--cat-"+c+")";
+      const sub=[c, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
+      row.innerHTML=`<span class="item-emoji">${CAT_EMOJI[c]||"🍽"}</span>
         <span class="nm"><div class="t">${esc(x.name)}</div><div class="s">${sub}</div></span>
         <span class="kc">${x.cal}</span>
         <button class="del" data-id="${x.id}">✕</button>`;
@@ -659,6 +684,21 @@ function renderToday(){
   });
 }
 function esc(s){ return (s||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+let _openMacro=null;
+const MACRO_LABEL={pro:"Protein",carb:"Carbs",fat:"Fat",sugar:"Sugar",items:"Items"};
+function renderMacroDetail(){
+  document.querySelectorAll("#macroRow .mchip").forEach(b=>b.classList.toggle("on",b.dataset.macro===_openMacro));
+  const box=$("#macroDetail");
+  if(!_openMacro){ box.classList.remove("open"); box.innerHTML=""; return; }
+  const items=dayItems(); let rows;
+  if(_openMacro==="items"){ rows=items.map(x=>({n:x.name, v:(x.cal||0)+" kcal"})); }
+  else { const f=_openMacro; rows=items.filter(x=>(+x[f]||0)>0).sort((a,b)=>(+b[f]||0)-(+a[f]||0)).map(x=>({n:x.name, v:Math.round(+x[f])+" g"})); }
+  box.innerHTML = rows.length ? rows.map(r=>`<div class="mrow"><span>${esc(r.n)}</span><span class="k">${r.v}</span></div>`).join("")
+    : `<div class="mrow"><span class="k">Nothing with ${MACRO_LABEL[_openMacro].toLowerCase()} logged for this day</span><span></span></div>`;
+  box.classList.add("open");
+}
+$("#macroRow").addEventListener("click",e=>{ const b=e.target.closest(".mchip"); if(!b) return; _openMacro=(_openMacro===b.dataset.macro)?null:b.dataset.macro; renderMacroDetail(); });
+
 
 /* ---------- WATER ---------- */
 function updateWaterCard(){
@@ -667,7 +707,8 @@ function updateWaterCard(){
   $("#waterBar").style.width = Math.min(oz/goal*100,100)+"%";
 }
 function addWater(oz){ S.water[cursor]=Math.max(0,(S.water[cursor]||0)+oz); save(); updateWaterCard(); }
-$("#waterCup").onclick=()=>addWater(8);
+$("#water8").onclick=()=>addWater(8);
+$("#water12").onclick=()=>addWater(12);
 $("#water16").onclick=()=>addWater(16);
 $("#waterMinus").onclick=()=>addWater(-8);
 
@@ -789,10 +830,11 @@ function openSheet(meal, entry){
   $("#fPro").value  = entry && entry.pro ? entry.pro : "";
   $("#fCarb").value = entry && entry.carb ? entry.carb : "";
   $("#fFat").value  = entry && entry.fat ? entry.fat : "";
+  $("#fSugar").value= entry && entry.sugar ? entry.sugar : "";
   $("#sheetTitle").textContent = entry ? "Edit food" : "Add food";
   $("#saveFood").textContent   = entry ? "Save changes" : "Add to log";
   $("#camStatus").textContent=""; $("#camStatus").className="camstatus";
-  $("#macroFields").classList.toggle("open", !!(entry && (entry.pro||entry.carb||entry.fat)));
+  $("#macroFields").classList.toggle("open", !!(entry && (entry.pro||entry.carb||entry.fat||entry.sugar)));
   $("#camBtn").classList.toggle("hidden",!S.settings.photoEnabled);
   renderRecents();
   if(entry) $("#recentsWrap").style.display="none";
@@ -829,7 +871,7 @@ $("#saveFood").onclick=()=>{
   const name=$("#fName").value.trim();
   if(!name){ toast("Add a food name"); return; }
   if($("#fCal").value.trim()===""){ toast("Add calories"); return; }
-  const data={name,cal:+$("#fCal").value,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,cat:chosenCat,meal:$("#fMeal").value};
+  const data={name,cal:+$("#fCal").value,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,sugar:+$("#fSugar").value||0,cat:chosenCat,meal:$("#fMeal").value};
   if(editingId){
     const ent=S.log.find(x=>x.id===editingId);
     if(ent) Object.assign(ent,data);
@@ -843,7 +885,7 @@ $("#saveFood").onclick=()=>{
 $("#mealsCard").addEventListener("click",e=>{
   const add=e.target.closest(".additem"); if(add){ openSheet(add.dataset.meal); return; }
   const del=e.target.closest(".del"); if(del){ S.deleted=S.deleted||[]; S.deleted.push(del.dataset.id); S.log=S.log.filter(x=>x.id!==del.dataset.id); save(); renderToday(); return; }
-  const item=e.target.closest(".item"); if(item && item.dataset.id){ const ent=S.log.find(x=>x.id===item.dataset.id); if(ent) openSheet(ent.meal, ent); }
+  const item=e.target.closest(".item-card"); if(item && item.dataset.id){ const ent=S.log.find(x=>x.id===item.dataset.id); if(ent) openSheet(ent.meal, ent); }
 });
 
 /* ---------- PHOTO recognition ---------- */
@@ -861,6 +903,7 @@ $("#camInput").onchange=async e=>{
     $("#fPro").value=data.protein_g!=null?Math.round(data.protein_g):"";
     $("#fCarb").value=data.carbs_g!=null?Math.round(data.carbs_g):"";
     $("#fFat").value=data.fat_g!=null?Math.round(data.fat_g):"";
+    $("#fSugar").value=data.sugar_g!=null?Math.round(data.sugar_g):"";
     if(CATS.includes(data.category)){ chosenCat=data.category; buildCats(); }
     $("#macroFields").classList.add("open");
     st.textContent = (data.portion? "≈ "+data.portion+" · ":"")+"estimate — adjust if needed";
