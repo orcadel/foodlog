@@ -97,7 +97,7 @@
   nav.tabs button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
     color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer;padding:6px 0}
   nav.tabs button.on{color:var(--accent)}
-  nav.tabs .ic{font-size:21px;line-height:1}
+  nav.tabs .ic{font-size:21px;line-height:1;color:#2563eb}
 
   /* sheet / modal */
   .scrim{position:fixed;inset:0;background:rgba(15,20,28,.42);z-index:40;opacity:0;pointer-events:none;transition:opacity .2s}
@@ -247,10 +247,14 @@
         <div class="stats">
           <div class="statline"><span class="k">Target</span><span class="v" id="sTarget">1700</span></div>
           <div class="statline"><span class="k">Remaining</span><span class="v" id="sRemain">1700</span></div>
+          <div>
+            <div class="statline"><span class="k">Protein</span><span class="v" id="sProtein">0 / 150 g</span></div>
+            <div class="bar"><i id="proteinBar" style="width:0%"></i></div>
+          </div>
         </div>
       </div>
       <div class="macros" id="macroRow">
-        <button class="mchip" data-macro="pro"><div class="v" id="mPro">0g</div><div class="k">Protein</div><div class="chipbar"><i id="proChipBar"></i></div></button>
+        <button class="mchip" data-macro="pro"><div class="v" id="mPro">0g</div><div class="k">Protein</div></button>
         <button class="mchip" data-macro="carb"><div class="v" id="mCarb">0g</div><div class="k">Carbs</div></button>
         <button class="mchip" data-macro="fat"><div class="v" id="mFat">0g</div><div class="k">Fat</div></button>
         <button class="mchip" data-macro="sugar"><div class="v" id="mSugar">0g</div><div class="k">Sugar</div></button>
@@ -548,7 +552,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=26;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=27;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 const DEFAULTS = {
@@ -651,8 +655,9 @@ function renderToday(){
   const rem=tgt-eaten;
   $("#sRemain").textContent = rem>=0? rem : "+"+(-rem)+" over";
   $("#sRemain").style.color = rem>=0? "" : "var(--danger)";
-  $("#mPro").textContent=Math.round(pro)+"/"+proT+"g";   // show protein goal on the chip
-  $("#proChipBar").style.width=Math.min(pro/(proT||1)*100,100)+"%";
+  $("#mPro").textContent=Math.round(pro)+"/"+proT+"g";
+  $("#sProtein").textContent=Math.round(pro)+" / "+proT+" g";
+  $("#proteinBar").style.width=Math.min(pro/(proT||1)*100,100)+"%";
   $("#mCarb").textContent=Math.round(carb)+"g";
   $("#mFat").textContent=Math.round(fat)+"g";
   $("#mSugar").textContent=Math.round(items.reduce((a,x)=>a+(+x.sugar||0),0))+"g";
