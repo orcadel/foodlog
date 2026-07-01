@@ -524,7 +524,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=22;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=23;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
@@ -1057,27 +1057,27 @@ function computeIntake(){
   return {tdee:Math.round(tdee), moderate, gentle, floor, lb};
 }
 const ARTICLES=[
- {t:"The Healthy Eating Plate", link:"Harvard: Healthy Eating Plate",
-  url:"https://nutritionsource.hsph.harvard.edu/healthy-eating-plate/",
-  body:`A simple way to build any meal: make <b>half your plate vegetables and fruit</b>, <b>a quarter whole grains</b> (oats, brown rice, whole-grain bread), and <b>a quarter protein</b> (fish, poultry, beans, eggs). Cook with healthy oils like olive oil, and drink water or unsweetened drinks. It's a flexible template, not a rigid diet — most meals just need to lean in this direction.`},
- {t:"How a calorie deficit works", link:"Harvard: Healthy Weight",
-  url:"https://nutritionsource.hsph.harvard.edu/healthy-weight/",
-  body:`You lose weight when you take in fewer calories than you burn over time. A deficit of about <b>500 calories a day</b> tends to produce roughly <b>1 pound of loss per week</b>. Bigger isn't better: too steep a cut costs muscle, energy, and sleep. On appetite-reducing medication the opposite risk shows up — it's easy to under-eat — so treat your recommended target as a floor, not a number to beat.`},
- {t:"Protein: your priority on a GLP-1", link:"Harvard: Protein",
-  url:"https://nutritionsource.hsph.harvard.edu/what-should-you-eat/protein/",
-  body:`In a calorie deficit your body can burn muscle alongside fat. Eating enough protein — commonly <b>~0.7–1 gram per pound of body weight</b> — together with some resistance or strength training helps keep that muscle, so most of what you lose is fat. Spread it across the day: eggs or Greek yogurt early, then chicken, fish, tofu, or beans later. This matters even more on a GLP-1, where total intake drops.`},
+ {t:"The healthy plate", link:"USDA MyPlate",
+  url:"https://www.myplate.gov/",
+  body:`A simple way to build any meal: make <b>half your plate vegetables and fruit</b>, <b>a quarter whole grains</b> (oats, brown rice, whole-grain bread), and <b>a quarter protein</b> (fish, poultry, beans, eggs). Cook with healthy oils, and drink water or unsweetened drinks. It's a flexible template, not a rigid diet — most meals just need to lean this way.`},
+ {t:"How a calorie deficit works", link:"NIH: Weight Management",
+  url:"https://www.niddk.nih.gov/health-information/weight-management",
+  body:`You lose weight when you take in fewer calories than you burn over time. A deficit of about <b>500 calories a day</b> tends to produce roughly <b>1 pound of loss per week</b>. Bigger isn't better: too steep a cut costs muscle, energy, and sleep. Small, steady changes you can keep up beat crash diets.`},
+ {t:"Protein: keep it a priority", link:"MedlinePlus: Dietary Proteins",
+  url:"https://medlineplus.gov/dietaryproteins.html",
+  body:`In a calorie deficit your body can burn muscle alongside fat. Eating enough protein — commonly <b>~0.7-1 gram per pound of body weight</b> — with some resistance or strength training helps keep that muscle, so most of what you lose is fat. Spread it across the day: eggs or Greek yogurt early, then chicken, fish, tofu, or beans later.`},
  {t:"Fiber & vegetables for fullness", link:"Harvard: Fiber",
   url:"https://nutritionsource.hsph.harvard.edu/carbohydrates/fiber/",
-  body:`Fiber-rich foods — vegetables, fruit, beans, whole grains — fill you up for very few calories and slow digestion, which smooths out hunger and blood sugar. They also ease the <b>constipation</b> that GLP-1 medications commonly cause. Aim to make vegetables the largest single part of most plates.`},
- {t:"Smart carbs vs. refined carbs", link:"Harvard: Carbohydrates",
-  url:"https://nutritionsource.hsph.harvard.edu/carbohydrates/",
-  body:`Carbs aren't the enemy — quality is what matters. <b>Whole, intact carbs</b> (oats, whole grains, beans, fruit, vegetables) digest slowly and keep you satisfied. <b>Refined carbs</b> and sugary drinks spike and crash your blood sugar, which drives hunger soon after. Easy swaps: whole-grain for white bread, water or sparkling water for soda.`},
+  body:`Fiber-rich foods — vegetables, fruit, beans, whole grains — fill you up for very few calories and slow digestion, which smooths out hunger and blood sugar and supports healthy digestion. Aim to make vegetables the largest single part of most plates.`},
+ {t:"Smart carbs vs. refined carbs", link:"MedlinePlus: Carbohydrates",
+  url:"https://medlineplus.gov/carbohydrates.html",
+  body:`Carbs aren't the enemy — quality is what matters. <b>Whole, intact carbs</b> (oats, whole grains, beans, fruit, vegetables) digest slowly and keep you satisfied. <b>Refined carbs</b> and sugary drinks spike and crash your blood sugar, driving hunger soon after. Easy swaps: whole-grain for white bread, water or sparkling water for soda.`},
  {t:"Healthy fats (and which to limit)", link:"Harvard: Fats & Cholesterol",
   url:"https://nutritionsource.hsph.harvard.edu/what-should-you-eat/fats-and-cholesterol/",
-  body:`Fat is essential — but calorie-dense, so portions count in a deficit. Favor <b>unsaturated fats</b>: olive oil, nuts, seeds, avocado, and fish. Limit <b>saturated fat</b> (fatty meats, butter, full-fat dairy) and avoid trans fats. One practical GLP-1 note: very greasy or rich meals can worsen nausea, so lighter, smaller portions usually sit better.`},
- {t:"Hydration & easing side effects", link:"Harvard: Water",
+  body:`Fat is essential — but calorie-dense, so portions count in a deficit. Favor <b>unsaturated fats</b>: olive oil, nuts, seeds, avocado, and fish. Limit <b>saturated fat</b> (fatty meats, butter, full-fat dairy) and avoid trans fats.`},
+ {t:"Hydration", link:"Harvard: Water",
   url:"https://nutritionsource.hsph.harvard.edu/water/",
-  body:`GLP-1 medications blunt thirst as well as appetite, so it's easy to under-drink without noticing. Sip water steadily through the day. To keep <b>nausea</b> down: eat smaller, slower meals, stop at comfortably full, and go easy on greasy or very sweet foods. If <b>constipation</b> appears, lean harder on fiber and fluids.`},
+  body:`Staying hydrated supports energy, digestion, and appetite control — and it's easy to forget. Sip water steadily through the day; plain or sparkling water and other unsweetened drinks all count. A simple habit: a glass with each meal.`},
 ];
 const GLP1_ARTICLES=[
  {t:"On a GLP-1: eat enough", link:"Harvard: Healthy Weight",
@@ -1093,6 +1093,7 @@ const GLP1_ARTICLES=[
   url:"https://nutritionsource.hsph.harvard.edu/water/",
   body:`These medications blunt thirst, so it's easy to under-drink. Sip water through the day — it supports energy and digestion and helps with constipation.`},
 ];
+let _articlesKey=null;
 function renderLearn(){
   const box=$("#calcBox"), r=computeIntake();
   if(!r){
@@ -1116,7 +1117,10 @@ function renderLearn(){
       <div class="calc-basis">Based on ${s.age} y · ${genLab} · ${ft}′${inch}″ · ${r.lb} lb · ${actLab}, using the Mifflin-St Jeor equation. <button class="gotolink" onclick="showTab('settings')">Edit in Settings</button></div>`;
     $("#useTarget").onclick=()=>{ S.settings.calTarget=r.moderate; save(); toast("Target set to "+r.moderate); renderLearn(); };
   }
-  const host=$("#articles"); host.innerHTML="";
+  const _akey=(S.settings.glp1!==false)?"glp1":"base";
+  const host=$("#articles");
+  if(host.children.length && _articlesKey===_akey) return;   // preserve open accordions on re-render
+  _articlesKey=_akey; host.innerHTML="";
   const list=ARTICLES.concat(S.settings.glp1!==false ? GLP1_ARTICLES : []);
   list.forEach(a=>{
     const it=document.createElement("div"); it.className="acc-item";

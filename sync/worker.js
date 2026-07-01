@@ -13,7 +13,7 @@ const VAPID_SUBJECT = "mailto:dtgruner@gmail.com";
 const VISION_MODEL = "claude-sonnet-4-6";
 const MAX_VISION_PER_DAY = 200;          // hard daily spend cap (~$2/day) — the real abuse protection
 const ALLOWED_ORIGINS = ["https://orcadel.github.io"]; // add capacitor origin when the app is wrapped
-const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string), calories (integer), protein_g (number), carbs_g (number), fat_g (number), category (exactly one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other), portion (short string like "1 bowl"). If several foods are on one plate, combine them into a single entry that sums the plate.`;
+const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string), calories (integer), protein_g (number), carbs_g (number), fat_g (number), sugar_g (number of grams of sugar), category (the single best-fitting one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other — choose Other ONLY when the food genuinely fits none of the others), portion (short string like "1 bowl"). If several foods are on one plate, combine them into a single entry that sums the plate.`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
