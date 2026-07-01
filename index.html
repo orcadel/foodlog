@@ -197,6 +197,10 @@
   .mchip .v{font-weight:680;font-size:14px}
   .mchip .k{font-size:9.5px;color:var(--muted);margin-top:1px;text-transform:uppercase;letter-spacing:.3px}
   .mchip.on .k{color:rgba(255,255,255,.85)}
+  .chipbar{height:3px;border-radius:3px;background:var(--track);margin-top:6px;overflow:hidden}
+  .chipbar>i{display:block;height:100%;width:0;background:var(--accent);border-radius:3px}
+  .mchip.on .chipbar{background:rgba(255,255,255,.35)}
+  .mchip.on .chipbar>i{background:#fff}
   .macro-detail{max-height:0;overflow:hidden;transition:max-height .28s ease}
   .macro-detail.open{max-height:600px;margin-top:8px}
   .macro-detail .mrow{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:8px 4px;border-top:1px solid var(--line)}
@@ -246,7 +250,7 @@
         </div>
       </div>
       <div class="macros" id="macroRow">
-        <button class="mchip" data-macro="pro"><div class="v" id="mPro">0g</div><div class="k">Protein</div></button>
+        <button class="mchip" data-macro="pro"><div class="v" id="mPro">0g</div><div class="k">Protein</div><div class="chipbar"><i id="proChipBar"></i></div></button>
         <button class="mchip" data-macro="carb"><div class="v" id="mCarb">0g</div><div class="k">Carbs</div></button>
         <button class="mchip" data-macro="fat"><div class="v" id="mFat">0g</div><div class="k">Fat</div></button>
         <button class="mchip" data-macro="sugar"><div class="v" id="mSugar">0g</div><div class="k">Sugar</div></button>
@@ -544,7 +548,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=25;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=26;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 const DEFAULTS = {
@@ -648,6 +652,7 @@ function renderToday(){
   $("#sRemain").textContent = rem>=0? rem : "+"+(-rem)+" over";
   $("#sRemain").style.color = rem>=0? "" : "var(--danger)";
   $("#mPro").textContent=Math.round(pro)+"/"+proT+"g";   // show protein goal on the chip
+  $("#proChipBar").style.width=Math.min(pro/(proT||1)*100,100)+"%";
   $("#mCarb").textContent=Math.round(carb)+"g";
   $("#mFat").textContent=Math.round(fat)+"g";
   $("#mSugar").textContent=Math.round(items.reduce((a,x)=>a+(+x.sugar||0),0))+"g";
