@@ -107,8 +107,11 @@
     transform:translateY(110%);transition:transform .26s cubic-bezier(.32,.72,0,1);max-width:540px;margin:0 auto;
     max-height:92vh;overflow-y:auto}
   .sheet.show{transform:translateY(0)}
-  .grab{width:38px;height:4px;border-radius:3px;background:var(--press);margin:6px auto 12px}
-  .sheet h3{margin:0 0 14px;font-size:18px;font-weight:680;letter-spacing:-.3px}
+  .grab{width:38px;height:4px;border-radius:3px;background:var(--press);margin:6px auto 12px;cursor:pointer}
+  .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 14px}
+  .sheet h3{margin:0;font-size:18px;font-weight:680;letter-spacing:-.3px}
+  .sheet-x{flex:0 0 auto;width:32px;height:32px;border:none;border-radius:50%;background:var(--field);color:var(--muted);font-size:15px;line-height:1;cursor:pointer;display:grid;place-content:center}
+  .sheet-x:active{filter:brightness(.94)}
   label.fl{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:12px 2px 5px;text-transform:uppercase;letter-spacing:.4px}
   input.f,select.f{width:100%;font-size:16px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--field);color:var(--ink);font-family:inherit}
   input.f:focus,select.f:focus{outline:none;border-color:var(--accent);background:var(--card)}
@@ -472,8 +475,8 @@
 <!-- ADD SHEET -->
 <div class="scrim" id="scrim"></div>
 <div class="sheet" id="addSheet">
-  <div class="grab"></div>
-  <h3 id="sheetTitle">Add food</h3>
+  <div class="grab" id="sheetGrab"></div>
+  <div class="sheet-head"><h3 id="sheetTitle">Add food</h3><button class="sheet-x" id="sheetClose" aria-label="Close">✕</button></div>
 
   <button class="btn cam" id="camBtn"><span style="font-size:18px">📷</span> Snap a photo</button>
   <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
@@ -558,7 +561,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=28;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=29;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -889,6 +892,46 @@ function openSheet(meal, entry){
 function closeSheet(){ editingId=null; $("#scrim").classList.remove("show"); $("#addSheet").classList.remove("show"); }
 function guessMeal(){ const h=new Date().getHours(); return h<10?"Breakfast":h<15?"Lunch":h<21?"Dinner":"Snacks"; }
 $("#scrim").onclick=closeSheet;
+$("#sheetClose").onclick=closeSheet;
+$("#sheetGrab").onclick=closeSheet;
+// swipe-down-to-dismiss for bottom sheets (drag only engages when scrolled to top)
+function attachSwipeDown(sheet, scrim, closeFn){
+  let startY=0, startScroll=0, dragging=false, delta=0;
+  sheet.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1) return;
+    startY=e.touches[0].clientY; startScroll=sheet.scrollTop; dragging=false; delta=0;
+    sheet.style.transition="none";
+  },{passive:true});
+  sheet.addEventListener("touchmove",e=>{
+    if(e.touches.length!==1) return;
+    delta=e.touches[0].clientY-startY;
+    if(!dragging){ if(delta>6 && startScroll<=0) dragging=true; else return; }
+    if(delta<0) delta=0;
+    sheet.style.transform="translateY("+delta+"px)";
+    if(scrim) scrim.style.opacity=String(Math.max(0,1-delta/400));
+    e.preventDefault();
+  },{passive:false});
+  const end=()=>{
+    sheet.style.transition="";
+    if(!dragging) return;
+    dragging=false;
+    if(delta>90){
+      sheet.style.transform="translateY(110%)";
+      setTimeout(()=>{ closeFn(); sheet.style.transform=""; if(scrim) scrim.style.opacity=""; }, 240);
+    } else {
+      sheet.style.transform=""; if(scrim) scrim.style.opacity="";
+    }
+  };
+  sheet.addEventListener("touchend",end);
+  sheet.addEventListener("touchcancel",end);
+}
+attachSwipeDown($("#addSheet"), $("#scrim"), closeSheet);
+// Escape closes whichever overlay is open
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  if($("#addSheet").classList.contains("show")) closeSheet();
+  else if($("#insightWrap").classList.contains("show")) hideInsight();
+});
 $("#moreMacros").onclick=()=>$("#macroFields").classList.toggle("open");
 $("#fMeal").onchange=e=>sheetMeal=e.target.value;
 $("#fCal").addEventListener("input",()=>{ if(chosenCats.length>=2){ splitEdited=false; renderSplit(); } });
