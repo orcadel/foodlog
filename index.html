@@ -43,8 +43,11 @@
     display:grid;place-items:center;font-size:18px;color:var(--ink);cursor:pointer}
   .navbtn:active{background:var(--track)}
   section{padding-top:14px}
-  main.wrap{touch-action:pan-y}   /* browser owns vertical scroll; JS handles horizontal (tab pager) */
-  main.wrap.no-head{padding-top:calc(4px + var(--safe-top))}
+  /* per-pane horizontal pager: each tab is its own vertical scroll lane; the track slides between them */
+  #pagerViewport{position:fixed;inset:0;overflow:hidden;z-index:1}
+  #pager{display:flex;width:400%;height:100%;will-change:transform}
+  .pane{flex:0 0 25%;width:25%;height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:calc(4px + var(--safe-top)) max(16px,calc((100% - 540px)/2)) calc(88px + var(--safe-bot))}
+  #view-today{padding-top:0}   /* the sticky date header inside this pane provides the top inset */
   @keyframes tabInR{from{transform:translateX(26px);opacity:.35}to{transform:none;opacity:1}}
   @keyframes tabInL{from{transform:translateX(-26px);opacity:.35}to{transform:none;opacity:1}}
   .tab-in-r{animation:tabInR .19s cubic-bezier(.32,.72,0,1)}
@@ -240,20 +243,19 @@
 </head>
 <body>
 
-<header class="app">
-  <div class="wrap datebar">
-    <button class="navbtn" id="prevDay">‹</button>
-    <div style="text-align:center">
-      <h1 id="dateTitle">Today</h1>
-      <div class="sub" id="dateSub"></div>
-    </div>
-    <button class="navbtn" id="nextDay">›</button>
-  </div>
-</header>
-
-<main class="wrap">
+<div id="pagerViewport"><div id="pager">
   <!-- TODAY -->
-  <section id="view-today">
+  <section id="view-today" class="pane">
+    <header class="app">
+      <div class="datebar">
+        <button class="navbtn" id="prevDay">‹</button>
+        <div style="text-align:center">
+          <h1 id="dateTitle">Today</h1>
+          <div class="sub" id="dateSub"></div>
+        </div>
+        <button class="navbtn" id="nextDay">›</button>
+      </div>
+    </header>
     <div class="card">
       <div class="ring-row">
         <div class="ring">
@@ -304,7 +306,7 @@
   </section>
 
   <!-- WEIGHT -->
-  <section id="view-weight" class="hidden">
+  <section id="view-weight" class="pane">
     <div class="card">
       <h2 class="title">This week</h2>
       <div id="weeklyBox"></div>
@@ -332,7 +334,7 @@
   </section>
 
   <!-- LEARN -->
-  <section id="view-learn" class="hidden">
+  <section id="view-learn" class="pane">
     <div class="card">
       <h2 class="title">Weekly insight</h2>
       <div class="hint" style="margin:0 0 12px">An AI recap of your week — what's working and one thing to tweak.</div>
@@ -354,7 +356,7 @@
   </section>
 
   <!-- SETTINGS -->
-  <section id="view-settings" class="hidden">
+  <section id="view-settings" class="pane">
     <div class="card">
       <h2 class="title">About you</h2>
       <div class="set-row">
@@ -487,7 +489,7 @@
     </div>
     <div class="hint" style="text-align:center">FoodLog · v1 · private PWA</div>
   </section>
-</main>
+</div></div><!-- /pager -->
 
 <nav class="tabs">
   <button data-tab="today" class="on"><span class="ic" style="color:#f2b307">★</span>Today</button>
@@ -598,7 +600,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=34;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=35;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -906,68 +908,47 @@ function renderSettings(){
 }
 
 /* ---------- tabs ---------- */
-function showTab(t){
-  document.querySelectorAll("section.peek").forEach(s=>{ s.classList.remove("peek"); s.style.transition=""; s.style.transform=""; });   // clear any in-flight peek
-  ["today","weight","learn","settings"].forEach(v=>$("#view-"+v).classList.toggle("hidden",v!==t));
-  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
-  const head=document.querySelector("header.app");
-  head.style.display = t==="today" ? "" : "none";
-  document.querySelector("main.wrap").classList.toggle("no-head", t!=="today");   // header carries the safe-area top pad; add it to main when header is hidden (clears the notch)
-  $("#view-"+t).classList.remove("tab-in-r","tab-in-l");   // clear any leftover swipe animation so bottom-nav switches don't replay it
-
-  if(t==="today")renderToday(); if(t==="weight")renderWeight(); if(t==="learn"){ renderLearn(); generateInsight(false).catch(()=>{}); } if(t==="settings")renderSettings();
-}
-document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-// ---- swipe between tabs (B: current page follows the finger, early axis-lock so vertical scroll is never captured; clamp at ends) ----
 const TAB_ORDER=["today","weight","learn","settings"];
 function currentTab(){ const on=document.querySelector("nav.tabs button.on"); return on?on.dataset.tab:"today"; }
 function anyOverlayOpen(){ return ["#addSheet","#insightWrap","#dcWrap","#onb"].some(s=>{ const el=document.querySelector(s); return el && el.classList.contains("show"); }); }
-function navToTab(t,dir){ showTab(t); const sec=document.querySelector("#view-"+t); if(sec){ sec.classList.remove("tab-in-r","tab-in-l"); void sec.offsetWidth; sec.classList.add(dir>0?"tab-in-r":"tab-in-l"); } }
+function renderTab(t){ if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn"){ renderLearn(); generateInsight(false).catch(()=>{}); } else if(t==="settings")renderSettings(); }
+function paneX(i){ return -i*($("#pagerViewport").clientWidth||window.innerWidth); }
+function showTab(t){
+  const i=Math.max(0,TAB_ORDER.indexOf(t)); t=TAB_ORDER[i];
+  const pager=$("#pager");
+  pager.style.transition="transform .26s cubic-bezier(.32,.72,0,1)";
+  pager.style.transform="translateX("+paneX(i)+"px)";
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
+  const pane=$("#view-"+t), sv=pane.scrollTop; renderTab(t); pane.scrollTop=sv;   // refresh data, keep the pane exactly where you left it
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+window.addEventListener("resize",()=>{ const pager=$("#pager"); if(!pager) return; pager.style.transition="none"; pager.style.transform="translateX("+paneX(Math.max(0,TAB_ORDER.indexOf(currentTab())))+"px)"; });
+// ---- Glide: per-pane horizontal pager. The track follows the finger; each pane scrolls vertically on its own and keeps its position. ----
 (function(){
-  const main=document.querySelector("main.wrap");
-  let sx=0,sy=0,lock=null,cur=null,vw=1,peekEl=null,peekDir=0;
-  const neighbor=dir=>{ const i=TAB_ORDER.indexOf(currentTab()), ni=i+dir; return (ni>=0&&ni<TAB_ORDER.length)?TAB_ORDER[ni]:null; };
-  function renderTab(t){ if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn")renderLearn(); else if(t==="settings")renderSettings(); }
-  function mountPeek(dir){ const nb=neighbor(dir); if(!nb) return; const el=$("#view-"+nb); renderTab(nb); el.classList.remove("hidden"); el.classList.add("peek"); el.style.transition="none"; el.style.transform="translateX("+(dir>0?vw:-vw)+"px)"; peekEl=el; peekDir=dir; }
-  function unmountPeek(){ if(peekEl){ peekEl.classList.remove("peek"); peekEl.style.transition=""; peekEl.style.transform=""; peekEl.classList.add("hidden"); peekEl=null; } peekDir=0; }
-  main.addEventListener("touchstart",e=>{
-    if(S.settings.swipeNav===false || e.touches.length!==1 || anyOverlayOpen() || (e.target.closest && e.target.closest("[data-hpan]"))){ lock="v"; cur=null; return; }
-    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; lock=null; vw=main.clientWidth||window.innerWidth; cur=$("#view-"+currentTab());
+  const vp=$("#pagerViewport"), pager=$("#pager"); if(!vp||!pager) return;
+  let sx=0,sy=0,lock=null,idx=0,baseX=0,vw=1;
+  vp.addEventListener("touchstart",e=>{
+    if(S.settings.swipeNav===false || e.touches.length!==1 || anyOverlayOpen() || (e.target.closest && e.target.closest("[data-hpan]"))){ lock="v"; return; }
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; lock=null; vw=vp.clientWidth||window.innerWidth; idx=Math.max(0,TAB_ORDER.indexOf(currentTab())); baseX=-idx*vw;
   },{passive:true});
-  main.addEventListener("touchmove",e=>{
-    if(lock==="v"||!cur) return;
+  vp.addEventListener("touchmove",e=>{
+    if(lock==="v") return;
     const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(lock===null){
-      if(Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)){ lock="h"; cur.style.transition="none"; }
-      else if(Math.abs(dy)>6){ lock="v"; return; }   // vertical → hand it back to the scroller
+      if(Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)){ lock="h"; pager.style.transition="none"; }
+      else if(Math.abs(dy)>6){ lock="v"; return; }   // vertical → native per-pane scroll
       else return;
     }
-    if(lock==="h"){
-      e.preventDefault();
-      const dir=dx<0?1:-1, nb=neighbor(dir);
-      let d=dx; if(!nb) d=d/3.5;                      // rubber-band at the ends
-      if(nb && peekDir!==dir){ unmountPeek(); mountPeek(dir); }   // mount the neighbor peeking in from the correct side
-      else if(!nb && peekEl) unmountPeek();
-      cur.style.transform="translateX("+d.toFixed(1)+"px)";
-      if(peekEl) peekEl.style.transform="translateX("+((dir>0?vw:-vw)+d).toFixed(1)+"px)";
-    }
+    if(lock==="h"){ e.preventDefault(); let d=dx; if((idx===0&&dx>0)||(idx===TAB_ORDER.length-1&&dx<0)) d=dx/3.5; pager.style.transform="translateX("+(baseX+d)+"px)"; }
   },{passive:false});
   function end(e){
-    if(lock!=="h"||!cur){ if(cur){cur.style.transition="";cur.style.transform="";} unmountPeek(); cur=null; lock=null; return; }
-    const t=e.changedTouches[0], dx=t.clientX-sx, dir=dx<0?1:-1, nb=neighbor(dir), c=cur, pe=peekEl;
-    cur=null; lock=null; peekEl=null; peekDir=0;
-    const EASE="transform .19s cubic-bezier(.32,.72,0,1)";
-    c.style.transition=EASE; if(pe) pe.style.transition=EASE;
-    if(nb && pe && Math.abs(dx)>vw*0.22){                        // commit: slide current out, neighbor to center
-      c.style.transform="translateX("+(dir>0?-vw:vw)+"px)"; pe.style.transform="translateX(0)";
-      setTimeout(()=>{ pe.classList.remove("peek"); pe.style.transition=""; pe.style.transform=""; c.style.transition=""; c.style.transform=""; showTab(nb); },200);
-    } else {                                                     // snap back
-      c.style.transform=""; if(pe) pe.style.transform="translateX("+(dir>0?vw:-vw)+"px)";
-      setTimeout(()=>{ c.style.transition=""; if(pe){ pe.classList.remove("peek"); pe.style.transition=""; pe.style.transform=""; pe.classList.add("hidden"); } },210);
-    }
+    if(lock!=="h"){ lock=null; return; }
+    const dx=e.changedTouches[0].clientX-sx; lock=null;
+    let ni=idx; if(Math.abs(dx)>vw*0.22) ni = dx<0? Math.min(TAB_ORDER.length-1, idx+1) : Math.max(0, idx-1);
+    showTab(TAB_ORDER[ni]);   // animate snap to the target pane (or back)
   }
-  main.addEventListener("touchend",end,{passive:true});
-  main.addEventListener("touchcancel",end,{passive:true});
+  vp.addEventListener("touchend",end,{passive:true});
+  vp.addEventListener("touchcancel",end,{passive:true});
 })();
 
 /* ---------- date nav ---------- */
@@ -1539,7 +1520,7 @@ $("#onbGo").onclick=()=>{
 function applyTheme(){ const t=S.settings.theme||"auto"; const r=document.documentElement; if(t==="auto") r.removeAttribute("data-theme"); else r.setAttribute("data-theme",t); }
 document.querySelectorAll("#themeSeg button").forEach(b=>b.onclick=()=>{ S.settings.theme=b.dataset.theme; save(); applyTheme(); renderSettings(); });
 applyTheme();
-buildCats(); renderToday(); showOnboarding();
+buildCats(); renderToday(); renderWeight(); renderLearn(); renderSettings(); showOnboarding();   // all panes live in the track, so populate each one
 // end-of-day check opened from a notification tap (?logcheck=YYYY-MM-DD)
 try{ const _u=new URL(location.href); const _lc=_u.searchParams.get("logcheck"); if(_lc){ askLogCheck((_lc==="1"||_lc==="today")?today():_lc); _u.searchParams.delete("logcheck"); history.replaceState(null,"",_u.pathname+_u.search+_u.hash); } }catch(e){}
 if(S.sync && S.sync.enabled){ syncNow(false); startPolling(); }
