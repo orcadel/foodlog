@@ -13,7 +13,7 @@ const VAPID_SUBJECT = "mailto:dtgruner@gmail.com";
 const VISION_MODEL = "claude-sonnet-4-6";
 const MAX_VISION_PER_DAY = 200;          // hard daily spend cap (~$2/day) — the real abuse protection
 const ALLOWED_ORIGINS = ["https://orcadel.github.io"]; // add capacitor origin when the app is wrapped
-const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string), calories (integer), protein_g (number), carbs_g (number), fat_g (number), sugar_g (number of grams of sugar), category (the single best-fitting one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other — choose Other ONLY when the food genuinely fits none of the others), portion (short string like "1 bowl"). If several foods are on one plate, combine them into a single entry that sums the plate.`;
+const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string naming the overall dish/plate), calories (integer — total for everything shown), protein_g (number), carbs_g (number), fat_g (number), sugar_g (number of grams of sugar), components (an array that breaks the plate into its food TYPES — each element {category, calories}, where category is one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other, and calories is that type's share of the total; include EVERY type genuinely present, e.g. a chicken salad → Vegetables + Meat, plus Fats for dressing or Grains for croutons if visible; the components' calories should sum to the total calories; if the dish is genuinely a single type, return one component), category (the single dominant food type, same enum, for back-compat), portion (short string like "1 bowl"). Keep it ONE dish but split its calories across the component food types.`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +102,7 @@ export default {
       const aRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
-        body: JSON.stringify({ model: VISION_MODEL, max_tokens: 300, system: sys, messages: [{ role: "user", content: userMsg }] }),
+        body: JSON.stringify({ model: VISION_MODEL, max_tokens: 450, system: sys, messages: [{ role: "user", content: userMsg }] }),
       });
       if (!aRes.ok) {
         let m = "coach HTTP " + aRes.status;

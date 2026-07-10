@@ -116,6 +116,11 @@
   .cats{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
   .cat{font-size:13px;font-weight:600;padding:8px 12px;border-radius:11px;border:1.5px solid var(--line);background:var(--field);cursor:pointer;color:var(--muted)}
   .cat.on{color:#fff;border-color:transparent}
+  .split-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .split-cell{display:flex;align-items:center;gap:8px}
+  .split-lab{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:5px;min-width:78px;white-space:nowrap}
+  .split-lab .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .split-cell .split-in{padding:7px 9px}
   .macro-fields{max-height:0;overflow:hidden;transition:max-height .25s}
   .macro-fields.open{max-height:240px}
   .morelink{font-size:13px;color:var(--accent);font-weight:620;background:none;border:none;padding:8px 2px;cursor:pointer}
@@ -488,8 +493,9 @@
     </div>
   </div>
 
-  <label class="fl">Food type</label>
+  <label class="fl">Food types <span style="color:var(--muted);font-weight:500">· tap all that apply</span></label>
   <div class="cats" id="catRow"></div>
+  <div id="splitRow" style="display:none"></div>
 
   <button class="morelink" id="moreMacros">+ protein / carbs / fat / sugar</button>
   <div class="macro-fields" id="macroFields">
@@ -552,9 +558,13 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=27;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=28;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
+// composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
+function entryParts(x){ return (x&&Array.isArray(x.parts)&&x.parts.length)? x.parts : [{cat:(x&&CATS.includes(x.cat))?x.cat:"Other", cal:+((x&&x.cal))||0}]; }
+function domCat(x){ const p=entryParts(x); let best=p[0]; p.forEach(q=>{ if((+q.cal||0)>(+best.cal||0)) best=q; }); return CATS.includes(best.cat)?best.cat:"Other"; }
+function evenSplit(total,cats){ const n=cats.length,o={}; if(!n)return o; const base=Math.floor(total/n); let rem=total-base*n; cats.forEach((c,i)=>o[c]=base+(i<rem?1:0)); return o; }
 const DEFAULTS = {
   settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
@@ -582,7 +592,7 @@ function migrate(r){
   r.deleted=r.deleted||[]; r.updatedAt=r.updatedAt||0; r.water=r.water||{}; r.insight=r.insight||null;
   r.onboarded = (r.onboarded===undefined) ? true : r.onboarded;
   const CAT_MAP={Protein:"Meat",Carbs:"Grains"};                 // migrate old macro-categories to food types
-  (r.log||[]).forEach(x=>{ if(CAT_MAP[x.cat]) x.cat=CAT_MAP[x.cat]; });
+  (r.log||[]).forEach(x=>{ if(CAT_MAP[x.cat]) x.cat=CAT_MAP[x.cat]; if(!Array.isArray(x.parts)||!x.parts.length) x.parts=[{cat:CATS.includes(x.cat)?x.cat:"Other", cal:+x.cal||0}]; });
   return r;
 }
 let _applyingRemote=false, _pushTimer=null;
@@ -622,7 +632,7 @@ function renderToday(){
   // ring — segmented by food category
   const C=2*Math.PI*56;
   const cats={}; CATS.forEach(c=>cats[c]=0);
-  items.forEach(x=>{ const c=CATS.includes(x.cat)?x.cat:"Other"; cats[c]+=(+x.cal||0); });
+  items.forEach(x=>{ entryParts(x).forEach(p=>{ const c=CATS.includes(p.cat)?p.cat:"Other"; cats[c]+=(+p.cal||0); }); });
   const present=CATS.filter(c=>cats[c]>0);
   const gap=present.length>1?1.5:0;
   const segHost=$("#ringSegs"); segHost.innerHTML="";
@@ -679,12 +689,14 @@ function renderToday(){
     const list=document.createElement("div"); list.className="items";
     if(mi.length===0){ const e=document.createElement("div"); e.className="empty"; e.textContent="Nothing yet"; list.appendChild(e); }
     mi.forEach(x=>{
-      const c=CATS.includes(x.cat)?x.cat:"Other";
+      const parts=entryParts(x); const c=domCat(x);
       const row=document.createElement("div"); row.className="item-card"; row.dataset.id=x.id;
       row.style.background="color-mix(in srgb, var(--cat-"+c+") 13%, var(--card))";
       row.style.borderLeftColor="var(--cat-"+c+")";
-      const sub=[c, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
-      row.innerHTML=`<span class="item-emoji">${CAT_EMOJI[c]||"🍽"}</span>
+      const typeStr = parts.length>1 ? parts.map(p=>p.cat).join(" · ") : c;
+      const emoji = parts.length>1 ? parts.slice(0,3).map(p=>CAT_EMOJI[p.cat]||"🍽").join("") : (CAT_EMOJI[c]||"🍽");
+      const sub=[typeStr, x.pro?Math.round(x.pro)+"g protein":""].filter(Boolean).join(" · ");
+      row.innerHTML=`<span class="item-emoji">${emoji}</span>
         <span class="nm"><div class="t">${esc(x.name)}</div><div class="s">${sub}</div></span>
         <span class="kc">${x.cal}</span>
         <button class="del" data-id="${x.id}">✕</button>`;
@@ -821,20 +833,44 @@ $("#prevDay").onclick=()=>{cursor=shiftDay(cursor,-1);renderToday();};
 $("#nextDay").onclick=()=>{ if(cursor<today()){cursor=shiftDay(cursor,1);renderToday();} };
 
 /* ---------- ADD sheet ---------- */
-let sheetMeal="Breakfast", chosenCat="Other", editingId=null;
+let sheetMeal="Breakfast", chosenCats=[], splitEdited=false, editingId=null;
+function toggleCat(c){ const i=chosenCats.indexOf(c); if(i>=0) chosenCats.splice(i,1); else chosenCats.push(c); splitEdited=false; buildCats(); }
 function buildCats(){
   const row=$("#catRow"); row.innerHTML="";
   CATS.forEach(c=>{
-    const b=document.createElement("button"); b.className="cat"+(c===chosenCat?" on":""); b.textContent=c;
-    b.style.cssText = c===chosenCat? `background:var(--cat-${c})` : "";
-    b.onclick=()=>{ chosenCat=c; buildCats(); };
+    const on=chosenCats.includes(c);
+    const b=document.createElement("button"); b.className="cat"+(on?" on":""); b.textContent=c;
+    b.style.cssText = on? `background:var(--cat-${c})` : "";
+    b.onclick=()=>toggleCat(c);
     row.appendChild(b);
   });
+  renderSplit();
+}
+function readSplit(){ const o={}; document.querySelectorAll("#splitRow .split-in").forEach(i=>o[i.dataset.cat]=+i.value||0); return o; }
+function syncSplitTotal(){ const t=Object.values(readSplit()).reduce((a,b)=>a+b,0); $("#fCal").value=t||""; }
+function renderSplit(){
+  const host=$("#splitRow");
+  if(chosenCats.length<2){ host.style.display="none"; host.innerHTML=""; return; }
+  const vals = splitEdited ? readSplit() : evenSplit(+$("#fCal").value||0, chosenCats);
+  host.style.display="";
+  host.innerHTML='<label class="fl" style="margin-top:10px">Calorie split'+(splitEdited?'':' · auto-even, adjust if you like')+'</label>';
+  const grid=document.createElement("div"); grid.className="split-grid";
+  chosenCats.forEach(c=>{
+    const cell=document.createElement("div"); cell.className="split-cell";
+    const lab=document.createElement("span"); lab.className="split-lab"; lab.innerHTML='<span class="dot" style="background:var(--cat-'+c+')"></span>'+c;
+    const inp=document.createElement("input"); inp.type="number"; inp.inputMode="numeric"; inp.className="f split-in"; inp.dataset.cat=c; inp.value=(vals[c]!=null?vals[c]:0);
+    inp.oninput=()=>{ splitEdited=true; syncSplitTotal(); };
+    cell.appendChild(lab); cell.appendChild(inp); grid.appendChild(cell);
+  });
+  host.appendChild(grid);
 }
 function openSheet(meal, entry){
   editingId = entry ? entry.id : null;
   sheetMeal = entry ? entry.meal : (meal||guessMeal()); $("#fMeal").value=sheetMeal;
-  chosenCat = entry ? (entry.cat||"Other") : "Other"; buildCats();
+  if(entry){ const p=entryParts(entry); chosenCats=p.map(q=>q.cat).filter(c=>CATS.includes(c)); if(!chosenCats.length) chosenCats=["Other"]; splitEdited=chosenCats.length>=2; }
+  else { chosenCats=[]; splitEdited=false; }
+  buildCats();
+  if(entry){ const map={}; entryParts(entry).forEach(q=>{ if(CATS.includes(q.cat)) map[q.cat]=Math.round(+q.cal||0); }); document.querySelectorAll("#splitRow .split-in").forEach(i=>i.value=map[i.dataset.cat]||0); }
   $("#fName").value = entry ? entry.name : "";
   $("#fCal").value  = entry ? entry.cal : "";
   $("#fPro").value  = entry && entry.pro ? entry.pro : "";
@@ -855,6 +891,7 @@ function guessMeal(){ const h=new Date().getHours(); return h<10?"Breakfast":h<1
 $("#scrim").onclick=closeSheet;
 $("#moreMacros").onclick=()=>$("#macroFields").classList.toggle("open");
 $("#fMeal").onchange=e=>sheetMeal=e.target.value;
+$("#fCal").addEventListener("input",()=>{ if(chosenCats.length>=2){ splitEdited=false; renderSplit(); } });
 
 function renderRecents(){
   // most-recent unique foods by name
@@ -867,9 +904,9 @@ function renderRecents(){
   $("#recentsWrap").style.display = out.length? "" : "none";
   out.forEach(x=>{
     const r=document.createElement("div"); r.className="recent";
-    r.innerHTML=`<span class="dot" style="background:var(--cat-${x.cat||'Other'})"></span>
+    r.innerHTML=`<span class="dot" style="background:var(--cat-${domCat(x)})"></span>
       <span class="t">${esc(x.name)}</span><span class="k">${x.cal} kcal</span>`;
-    r.onclick=()=>{ addEntry({name:x.name,cal:+x.cal,pro:+x.pro||0,carb:+x.carb||0,fat:+x.fat||0,cat:x.cat,meal:$("#fMeal").value}); toast(x.name+" logged"); closeSheet(); };
+    r.onclick=()=>{ addEntry({name:x.name,cal:+x.cal,pro:+x.pro||0,carb:+x.carb||0,fat:+x.fat||0,cat:domCat(x),parts:entryParts(x).map(p=>({cat:p.cat,cal:+p.cal||0})),meal:$("#fMeal").value}); toast(x.name+" logged"); closeSheet(); };
     host.appendChild(r);
   });
 }
@@ -881,7 +918,16 @@ $("#saveFood").onclick=()=>{
   const name=$("#fName").value.trim();
   if(!name){ toast("Add a food name"); return; }
   if($("#fCal").value.trim()===""){ toast("Add calories"); return; }
-  const data={name,cal:+$("#fCal").value,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,sugar:+$("#fSugar").value||0,cat:chosenCat,meal:$("#fMeal").value};
+  let cats=chosenCats.slice(); if(!cats.length) cats=["Other"];
+  let parts;
+  if(cats.length>=2){
+    const sp=readSplit();
+    parts=cats.map(c=>({cat:c, cal:Math.max(0,Math.round(+sp[c]||0))})).filter(p=>p.cal>0);
+    if(!parts.length){ const ev=evenSplit(+$("#fCal").value||0,cats); parts=cats.map(c=>({cat:c,cal:ev[c]})); }
+  } else { parts=[{cat:cats[0], cal:Math.round(+$("#fCal").value||0)}]; }
+  const totalCal=parts.reduce((a,p)=>a+p.cal,0);
+  const dom=parts.reduce((a,p)=>p.cal>a.cal?p:a,parts[0]).cat;
+  const data={name,cal:totalCal,pro:+$("#fPro").value||0,carb:+$("#fCarb").value||0,fat:+$("#fFat").value||0,sugar:+$("#fSugar").value||0,cat:dom,parts,meal:$("#fMeal").value};
   if(editingId){
     const ent=S.log.find(x=>x.id===editingId);
     if(ent) Object.assign(ent,data);
@@ -914,7 +960,11 @@ $("#camInput").onchange=async e=>{
     $("#fCarb").value=data.carbs_g!=null?Math.round(data.carbs_g):"";
     $("#fFat").value=data.fat_g!=null?Math.round(data.fat_g):"";
     $("#fSugar").value=data.sugar_g!=null?Math.round(data.sugar_g):"";
-    if(CATS.includes(data.category)){ chosenCat=data.category; buildCats(); }
+    let comps=Array.isArray(data.components)?data.components.filter(k=>CATS.includes(k.category)&&(+k.calories||0)>0):[];
+    if(!comps.length && CATS.includes(data.category)) comps=[{category:data.category, calories:data.calories||0}];
+    chosenCats=comps.map(k=>k.category); if(!chosenCats.length) chosenCats=["Other"];
+    splitEdited=chosenCats.length>=2; buildCats();
+    if(chosenCats.length>=2){ const map={}; comps.forEach(k=>map[k.category]=Math.round(+k.calories||0)); document.querySelectorAll("#splitRow .split-in").forEach(i=>i.value=map[i.dataset.cat]||0); syncSplitTotal(); }
     $("#macroFields").classList.add("open");
     st.textContent = (data.portion? "≈ "+data.portion+" · ":"")+"estimate — adjust if needed";
   }catch(err){
