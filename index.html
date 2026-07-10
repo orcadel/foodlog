@@ -316,7 +316,7 @@
         <div class="wstat"><div class="v good" id="wLost">—</div><div class="k">Lost</div></div>
         <div class="wstat"><div class="v" id="wToGo">—</div><div class="k">To Goal</div></div>
       </div>
-      <div class="seg" id="wRangeSeg" style="margin:6px 0 9px"><button data-range="1M" class="on">1M</button><button data-range="3M">3M</button><button data-range="6M">6M</button><button data-range="All">All</button></div>
+      <div class="seg" id="wRangeSeg" style="margin:6px 0 9px"><button data-range="1W">1W</button><button data-range="1M" class="on">1M</button><button data-range="3M">3M</button><button data-range="6M">6M</button><button data-range="All">All</button></div>
       <svg class="chart" id="wChart" data-hpan viewBox="0 0 320 170" preserveAspectRatio="none" style="touch-action:pan-y"></svg>
       <div id="wRange" class="hint" style="text-align:center;margin-top:2px"></div>
     </div>
@@ -598,7 +598,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=33;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=34;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -814,12 +814,12 @@ function renderWeight(){
   drawWeightChart();
 }
 function wFullSpan(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); if(!w.length) return 0; return Math.round((parseYmd(today())-parseYmd(w[0].date))/86400000); }
-function wSpan(){ return wRange==="1M"?30 : wRange==="3M"?91 : wRange==="6M"?182 : Math.max(30, wFullSpan()+1); }
+function wSpan(){ return wRange==="1W"?7 : wRange==="1M"?30 : wRange==="3M"?91 : wRange==="6M"?182 : Math.max(30, wFullSpan()+1); }
 function wMaxOffset(){ if(wRange==="All") return 0; return Math.max(0, wFullSpan()-(wSpan()-1)); }
 function drawWeightChart(){
   const svg=$("#wChart"); if(!svg) return; svg.innerHTML="";
   const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
-  const W=320,H=170,pad=14, SPAN=wSpan(), weekly=(wRange!=="1M");
+  const W=320,H=170,pad=14, SPAN=wSpan(), weekly=!(wRange==="1M"||wRange==="1W");
   const start=S.settings.startWeight, goal=S.settings.goalWeight;
   const vals=w.map(p=>p.lb);
   const minV=Math.min(...(vals.length?vals:[goal]),goal)-2, maxV=Math.max(...(vals.length?vals:[start]),start)+2;
