@@ -92,13 +92,15 @@ export default {
       const body = await req.json();
       const s = body.summary || {};
       const glp1 = !!body.glp1;
+      const basis = s.statBasis ?? s.daysLogged;
       const userMsg = `User's last 7 days:
-- Days logged: ${s.daysLogged}/7
+- Logging completeness: ${s.fullDays ?? 0} of 7 days FULLY logged, ${s.partialDays ?? 0} partial/incomplete.
+- The averages below are over the fully-logged days only (${basis}); partial/incomplete days are excluded so their missing food does NOT count as a miss.
 - Avg calories: ${s.avgCal} (target ${s.calTarget})
-- Avg protein: ${s.avgPro} g (target ${s.proTarget} g; protein goal hit ${s.proHit}/7 days)
+- Avg protein: ${s.avgPro} g (target ${s.proTarget} g; protein goal hit ${s.proHit}/${basis} fully-logged days)
 - Avg water: ${s.avgWater} oz
 - Weight change this week: ${s.wChange == null ? "n/a" : s.wChange + " lb"} (current ${s.currentWeight ?? "n/a"} lb, goal ${s.goalWeight} lb)`;
-      const sys = `You are a supportive, concrete nutrition and weight-loss coach. Given a week of the user's data, write 2-4 short sentences: lead with what went well, then ONE specific thing to improve, then a brief encouraging close. Be specific to the numbers; no bullet points, no markdown, no preamble.${glp1 ? " The user takes a GLP-1 medication (appetite-suppressing). When relevant, add one GLP-1-aware tip — e.g. enough protein to preserve muscle, hydration, or not under-eating below their floor." : ""}`;
+      const sys = `You are a supportive, concrete nutrition and weight-loss coach. Given a week of the user's data, write 3-5 short sentences. START with one short sentence stating how many of the 7 days were fully logged vs partial. Then lead with what went well, then ONE specific thing to improve, then a brief encouraging close. IMPORTANT: partial/incomplete days are excluded from the stats — never treat a partial day's missing protein, water, or calories as a failure or scold about it; judge only the fully-logged days. Be specific to the numbers; no bullet points, no markdown, no preamble.${glp1 ? " The user takes a GLP-1 medication (appetite-suppressing). When relevant, add one GLP-1-aware tip — e.g. enough protein to preserve muscle, hydration, or not under-eating below their floor." : ""}`;
       const aRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
@@ -147,7 +149,7 @@ async function runReminders(env) {
     for (const rem of due) {
       const firedKey = "fired:" + k.name.slice(4) + ":" + rem.key + ":" + rem.localDate;
       if (await env.SYNC.get(firedKey)) continue;
-      const status = await sendPush(rec.subscription, JSON.stringify({ title: rem.title, body: rem.body }), env);
+      const status = await sendPush(rec.subscription, JSON.stringify({ title: rem.title, body: rem.body, data: rem.data || null }), env);
       await env.SYNC.put(firedKey, "1", { expirationTtl: 60 * 60 * 36 });
       if (status === 404 || status === 410) await env.SYNC.delete(k.name); // subscription gone
     }
@@ -171,6 +173,7 @@ function dueReminders(prefs, tz) {
   if (prefs.meals && tick(t.lunch || "12:30")) out.push({ key: "lunch", title: "Lunch check-in", body: "Don't forget to log your lunch.", localDate: date });
   if (prefs.meals && tick(t.dinner || "19:00")) out.push({ key: "dinner", title: "Dinner check-in", body: "Log your dinner in FoodLog.", localDate: date });
   if (prefs.water && tick(t.water || "14:00")) out.push({ key: "water", title: "Hydration", body: "Time for some water.", localDate: date });
+  if (prefs.logcheck && tick(t.logcheck || "20:30")) out.push({ key: "logcheck", title: "End-of-day log check", body: "Did you finish logging today? Tap to confirm.", localDate: date, data: { type: "logcheck", date } });
   if (prefs.weekly && p.weekday === (t.weeklyDay || "Sun") && tick(t.weekly || "18:00")) out.push({ key: "weekly", title: "Your weekly insight is ready", body: "Open FoodLog to see this week's recap and AI insight.", localDate: date });
   return out;
 }

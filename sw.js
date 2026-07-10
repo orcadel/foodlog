@@ -1,5 +1,5 @@
 /* FoodLog service worker — network-first for fresh updates, cache fallback for offline. */
-const CACHE = "foodlog-v29";
+const CACHE = "foodlog-v30";
 const ASSETS = [
   "./", "./index.html", "./manifest.json",
   "./icon-180.png", "./icon-192.png", "./icon-512.png", "./icon-512-maskable.png"
@@ -37,15 +37,19 @@ self.addEventListener("push", e => {
   let d = { title: "FoodLog", body: "" };
   try { if (e.data) d = e.data.json(); } catch (_) { if (e.data) d.body = e.data.text(); }
   e.waitUntil(self.registration.showNotification(d.title || "FoodLog", {
-    body: d.body || "", icon: "./icon-192.png", badge: "./icon-192.png", tag: d.title
+    body: d.body || "", icon: "./icon-192.png", badge: "./icon-192.png", tag: d.title, data: d.data || null
   }));
 });
 
-// Tapping a notification opens/focuses the app.
+// Tapping a notification opens/focuses the app (and routes the end-of-day log check).
 self.addEventListener("notificationclick", e => {
   e.notification.close();
+  const data = e.notification.data || {};
+  const target = data.type === "logcheck" ? ("./?logcheck=" + encodeURIComponent(data.date || "today")) : "./";
   e.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then(cl => {
-    for (const c of cl) { if ("focus" in c) return c.focus(); }
-    if (clients.openWindow) return clients.openWindow("./");
+    for (const c of cl) {
+      if ("focus" in c) { if (data.type) { try { c.postMessage({ kind: "notif", ...data }); } catch (_) {} } return c.focus(); }
+    }
+    if (clients.openWindow) return clients.openWindow(target);
   }));
 });
