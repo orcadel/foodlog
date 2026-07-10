@@ -43,6 +43,7 @@
     display:grid;place-items:center;font-size:18px;color:var(--ink);cursor:pointer}
   .navbtn:active{background:var(--track)}
   section{padding-top:14px}
+  main.wrap{touch-action:pan-y}   /* browser owns vertical scroll; JS handles horizontal (tab pager) */
   main.wrap.no-head{padding-top:calc(4px + var(--safe-top))}
   @keyframes tabInR{from{transform:translateX(26px);opacity:.35}to{transform:none;opacity:1}}
   @keyframes tabInL{from{transform:translateX(-26px);opacity:.35}to{transform:none;opacity:1}}
@@ -314,7 +315,8 @@
         <div class="wstat"><div class="v good" id="wLost">—</div><div class="k">Lost</div></div>
         <div class="wstat"><div class="v" id="wToGo">—</div><div class="k">To Goal</div></div>
       </div>
-      <svg class="chart" id="wChart" viewBox="0 0 320 170" preserveAspectRatio="none"></svg>
+      <svg class="chart" id="wChart" data-hpan viewBox="0 0 320 170" preserveAspectRatio="none" style="touch-action:pan-y"></svg>
+      <div id="wRange" class="hint" style="text-align:center;margin-top:2px"></div>
     </div>
     <div class="card">
       <h2 class="title">Log a weigh-in</h2>
@@ -588,7 +590,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=31;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=32;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -791,6 +793,7 @@ function renderWeekly(){
     <div class="r"><span class="k">Weight change (7d)</span><span>${wChange==null?"—":(wChange<=0?"−":"+")+Math.abs(wChange)+" lb"}</span></div>
   </div>`;
 }
+let wPanOffset=0;   // days the 30-day window is shifted into the past (0 = window ends today)
 function renderWeight(){
   renderWeekly();
   const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
@@ -799,28 +802,54 @@ function renderWeight(){
   $("#wCurrent").textContent = cur!=null? cur+" lb":"—";
   $("#wLost").textContent = (cur!=null)? (start-cur>=0?"−":"+")+Math.abs(+(start-cur).toFixed(1))+" lb":"—";
   $("#wToGo").textContent = (cur!=null)? Math.max(0,+(cur-goal).toFixed(1))+" lb":"—";
-
-  // chart
-  const svg=$("#wChart"); svg.innerHTML="";
-  if(w.length<1) return;
-  const W=320,H=170,pad=14;
-  const xs=w.map((p,i)=>i), vals=w.map(p=>p.lb);
-  const minV=Math.min(...vals,goal)-2, maxV=Math.max(...vals,start)+2;
-  const X=i=> w.length<2?W/2 : pad + i*(W-2*pad)/(w.length-1);
-  const Y=v=> H-pad - (v-minV)/(maxV-minV)*(H-2*pad);
-  // goal line
-  const gy=Y(goal);
-  svg.insertAdjacentHTML("beforeend",`<line x1="${pad}" y1="${gy}" x2="${W-pad}" y2="${gy}" stroke="#cfe6da" stroke-width="1.5" stroke-dasharray="4 4"/>`);
-  svg.insertAdjacentHTML("beforeend",`<text x="${W-pad}" y="${gy-5}" text-anchor="end" font-size="9" fill="#7b8694">goal ${goal}</text>`);
-  // area + line
-  let d=""; w.forEach((p,i)=>{ d+=(i?"L":"M")+X(i)+" "+Y(p.lb)+" "; });
-  if(w.length>1){
-    let area=d+`L${X(w.length-1)} ${H-pad} L${X(0)} ${H-pad} Z`;
-    svg.insertAdjacentHTML("beforeend",`<path d="${area}" fill="rgba(47,143,91,.08)"/>`);
-    svg.insertAdjacentHTML("beforeend",`<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
-  }
-  w.forEach((p,i)=>{ svg.insertAdjacentHTML("beforeend",`<circle cx="${X(i)}" cy="${Y(p.lb)}" r="3.4" fill="#fff" stroke="var(--accent)" stroke-width="2"/>`); });
+  drawWeightChart();
 }
+function wMaxOffset(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); if(!w.length) return 0; const earliest=Math.round((parseYmd(today())-parseYmd(w[0].date))/86400000); return Math.max(0, earliest-29); }
+function drawWeightChart(){
+  const svg=$("#wChart"); if(!svg) return; svg.innerHTML="";
+  const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  const W=320,H=170,pad=14,WIN=30;
+  const start=S.settings.startWeight, goal=S.settings.goalWeight;
+  const vals=w.map(p=>p.lb);
+  const minV=Math.min(...(vals.length?vals:[goal]),goal)-2, maxV=Math.max(...(vals.length?vals:[start]),start)+2;
+  const Y=v=> H-pad - (v-minV)/((maxV-minV)||1)*(H-2*pad);           // fixed y-scale so panning only moves time
+  const dayIdx=d=> Math.round((parseYmd(d)-parseYmd(today()))/86400000);   // 0=today, -1=yesterday
+  wPanOffset=Math.max(0, Math.min(wPanOffset, wMaxOffset()));
+  const endIdx=-wPanOffset, startIdx=endIdx-(WIN-1);
+  const X=idx=> pad + (idx-startIdx)/(WIN-1)*(W-2*pad);
+  const gy=Y(goal);
+  svg.insertAdjacentHTML("beforeend",`<line x1="${pad}" y1="${gy.toFixed(1)}" x2="${W-pad}" y2="${gy.toFixed(1)}" stroke="#cfe6da" stroke-width="1.5" stroke-dasharray="4 4"/>`);
+  svg.insertAdjacentHTML("beforeend",`<text x="${W-pad}" y="${(gy-5).toFixed(1)}" text-anchor="end" font-size="9" fill="#7b8694">goal ${goal}</text>`);
+  const all=w.map(p=>({idx:dayIdx(p.date),lb:p.lb})).sort((a,b)=>a.idx-b.idx);
+  const inside=all.filter(p=>p.idx>=startIdx&&p.idx<=endIdx);
+  const leftN=all.filter(p=>p.idx<startIdx).slice(-1), rightN=all.filter(p=>p.idx>endIdx).slice(0,1);   // neighbors keep the line continuous at the edges (SVG clips the overflow)
+  const pts=[...leftN,...inside,...rightN];
+  if(pts.length){
+    let d=""; pts.forEach((p,i)=>{ d+=(i?"L":"M")+X(p.idx).toFixed(1)+" "+Y(p.lb).toFixed(1)+" "; });
+    if(pts.length>1){
+      const area=d+`L${X(pts[pts.length-1].idx).toFixed(1)} ${H-pad} L${X(pts[0].idx).toFixed(1)} ${H-pad} Z`;
+      svg.insertAdjacentHTML("beforeend",`<path d="${area}" fill="rgba(47,143,91,.08)"/>`);
+      svg.insertAdjacentHTML("beforeend",`<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
+    }
+    inside.forEach(p=>{ svg.insertAdjacentHTML("beforeend",`<circle cx="${X(p.idx).toFixed(1)}" cy="${Y(p.lb).toFixed(1)}" r="3.4" fill="#fff" stroke="var(--accent)" stroke-width="2"/>`); });
+  }
+  const lab=$("#wRange"); if(lab){ const f=n=>parseYmd(shiftDay(today(),n)).toLocaleDateString(undefined,{month:"short",day:"numeric"}); lab.textContent=f(startIdx)+" – "+f(endIdx)+(wMaxOffset()>0?"  ·  drag to scroll":""); }
+}
+// horizontal drag on the weight chart pans through time (vertical drags still scroll the page)
+(function(){
+  const svg=$("#wChart"); if(!svg) return;
+  let sx=0,sy=0,startOff=0,lock=null,cw=1;
+  svg.addEventListener("touchstart",e=>{ if(e.touches.length!==1){lock="v";return;} const t=e.touches[0]; sx=t.clientX; sy=t.clientY; startOff=wPanOffset; lock=null; cw=svg.getBoundingClientRect().width||300; },{passive:true});
+  svg.addEventListener("touchmove",e=>{
+    if(lock==="v") return;
+    const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+    if(lock===null){ if(Math.abs(dx)>6 && Math.abs(dx)>Math.abs(dy)) lock="h"; else if(Math.abs(dy)>6){ lock="v"; return; } else return; }
+    if(lock==="h"){ e.preventDefault(); wPanOffset=Math.max(0, Math.min(startOff + dx/cw*30, wMaxOffset())); drawWeightChart(); }
+  },{passive:false});
+  function endPan(){ if(lock==="h"){ wPanOffset=Math.round(wPanOffset); drawWeightChart(); } lock=null; }
+  svg.addEventListener("touchend",endPan,{passive:true});
+  svg.addEventListener("touchcancel",endPan,{passive:true});
+})();
 
 /* ---------- SETTINGS ---------- */
 function renderSettings(){
@@ -868,26 +897,48 @@ function showTab(t){
   if(t==="today")renderToday(); if(t==="weight")renderWeight(); if(t==="learn"){ renderLearn(); generateInsight(false).catch(()=>{}); } if(t==="settings")renderSettings();
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
-// ---- swipe left/right to move between tabs (A: switch-on-release + slide-in; clamp at the ends) ----
+// ---- swipe between tabs (B: current page follows the finger, early axis-lock so vertical scroll is never captured; clamp at ends) ----
 const TAB_ORDER=["today","weight","learn","settings"];
 function currentTab(){ const on=document.querySelector("nav.tabs button.on"); return on?on.dataset.tab:"today"; }
 function anyOverlayOpen(){ return ["#addSheet","#insightWrap","#dcWrap","#onb"].some(s=>{ const el=document.querySelector(s); return el && el.classList.contains("show"); }); }
 function navToTab(t,dir){ showTab(t); const sec=document.querySelector("#view-"+t); if(sec){ sec.classList.remove("tab-in-r","tab-in-l"); void sec.offsetWidth; sec.classList.add(dir>0?"tab-in-r":"tab-in-l"); } }
 (function(){
-  let sx=0, sy=0, st=0, tracking=false;
-  document.body.addEventListener("touchstart",e=>{ if(e.touches.length!==1){ tracking=false; return; } const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); tracking=true; },{passive:true});
-  document.body.addEventListener("touchend",e=>{
-    if(!tracking) return; tracking=false;
-    if(anyOverlayOpen()) return;
-    const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
-    if(Math.abs(dx)<60) return;                    // too small — a tap or tiny move
-    if(Math.abs(dx) < Math.abs(dy)*1.3) return;    // not clearly horizontal — leave vertical scroll alone
-    if(dt>700) return;                             // too slow to be a swipe
-    const i=TAB_ORDER.indexOf(currentTab());
-    const ni = dx<0 ? i+1 : i-1;                   // swipe left → next tab, right → previous
-    if(ni<0 || ni>=TAB_ORDER.length) return;       // clamp at the ends (no wrap)
-    navToTab(TAB_ORDER[ni], dx<0?1:-1);
+  const main=document.querySelector("main.wrap");
+  let sx=0,sy=0,lock=null,cur=null,vw=1;
+  const neighbor=dir=>{ const i=TAB_ORDER.indexOf(currentTab()), ni=i+dir; return (ni>=0&&ni<TAB_ORDER.length)?TAB_ORDER[ni]:null; };
+  main.addEventListener("touchstart",e=>{
+    if(e.touches.length!==1 || anyOverlayOpen() || (e.target.closest && e.target.closest("[data-hpan]"))){ lock="v"; cur=null; return; }
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; lock=null; vw=main.clientWidth||window.innerWidth; cur=document.querySelector("#view-"+currentTab());
   },{passive:true});
+  main.addEventListener("touchmove",e=>{
+    if(lock==="v"||!cur) return;
+    const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+    if(lock===null){
+      if(Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)){ lock="h"; cur.style.transition="none"; }
+      else if(Math.abs(dy)>6){ lock="v"; return; }   // vertical → hand it back to the scroller, never capture
+      else return;
+    }
+    if(lock==="h"){
+      e.preventDefault();
+      let d=dx; if(!neighbor(d<0?1:-1)) d=d/3.5;      // rubber-band at the ends
+      cur.style.transform="translateX("+d.toFixed(1)+"px)";
+    }
+  },{passive:false});
+  function end(e){
+    if(lock!=="h"||!cur){ lock=null; cur=null; return; }
+    const t=e.changedTouches[0], dx=t.clientX-sx, dir=dx<0?1:-1, nb=neighbor(dir), c=cur;
+    cur=null; lock=null;
+    c.style.transition="transform .2s cubic-bezier(.32,.72,0,1)";
+    if(nb && Math.abs(dx)>vw*0.22){
+      c.style.transform="translateX("+(dir<0?vw:-vw)+"px)";          // slide the current page off…
+      setTimeout(()=>{ c.style.transition=""; c.style.transform=""; navToTab(nb,dir); }, 175);   // …then bring the neighbor in
+    } else {
+      c.style.transform="";                                          // snap back
+      setTimeout(()=>{ c.style.transition=""; }, 220);
+    }
+  }
+  main.addEventListener("touchend",end,{passive:true});
+  main.addEventListener("touchcancel",end,{passive:true});
 })();
 
 /* ---------- date nav ---------- */
