@@ -49,6 +49,7 @@
   @keyframes tabInL{from{transform:translateX(-26px);opacity:.35}to{transform:none;opacity:1}}
   .tab-in-r{animation:tabInR .19s cubic-bezier(.32,.72,0,1)}
   .tab-in-l{animation:tabInL .19s cubic-bezier(.32,.72,0,1)}
+  section.peek{position:fixed;top:0;left:0;right:0;bottom:0;z-index:15;background:var(--bg);overflow:hidden;max-width:540px;margin:0 auto;padding:calc(4px + var(--safe-top)) 16px 0}
   .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
   h2.title{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:2px 2px 10px;font-weight:650}
 
@@ -315,6 +316,7 @@
         <div class="wstat"><div class="v good" id="wLost">—</div><div class="k">Lost</div></div>
         <div class="wstat"><div class="v" id="wToGo">—</div><div class="k">To Goal</div></div>
       </div>
+      <div class="seg" id="wRangeSeg" style="margin:6px 0 9px"><button data-range="1M" class="on">1M</button><button data-range="3M">3M</button><button data-range="6M">6M</button><button data-range="All">All</button></div>
       <svg class="chart" id="wChart" data-hpan viewBox="0 0 320 170" preserveAspectRatio="none" style="touch-action:pan-y"></svg>
       <div id="wRange" class="hint" style="text-align:center;margin-top:2px"></div>
     </div>
@@ -391,6 +393,12 @@
     <div class="card">
       <h2 class="title">Appearance</h2>
       <div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button></div>
+    </div>
+    <div class="card">
+      <div class="set-row">
+        <div><div class="l">Glide</div><div class="d">Swipe left/right anywhere to move between tabs — the next one peeks in as you drag.</div></div>
+        <div class="toggle" id="togSwipeNav"><i></i></div>
+      </div>
     </div>
     <div class="card">
       <h2 class="title">Daily targets</h2>
@@ -590,7 +598,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=32;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=33;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -598,7 +606,7 @@ function entryParts(x){ return (x&&Array.isArray(x.parts)&&x.parts.length)? x.pa
 function domCat(x){ const p=entryParts(x); let best=p[0]; p.forEach(q=>{ if((+q.cal||0)>(+best.cal||0)) best=q; }); return CATS.includes(best.cat)?best.cat:"Other"; }
 function evenSplit(total,cats){ const n=cats.length,o={}; if(!n)return o; const base=Math.floor(total/n); let rem=total-base*n; cats.forEach((c,i)=>o[c]=base+(i<rem?1:0)); return o; }
 const DEFAULTS = {
-  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,logcheck:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun",logcheck:"20:30"}}, photoEnabled:true, apiKey:"", model:"claude-sonnet-4-6"},
+  settings:{calTarget:1700, proTarget:150, startWeight:226, goalWeight:195, age:42, gender:"male", heightIn:71, activity:"light", waterGoal:64, glp1:true, theme:"auto", reminders:{enabled:false,meals:true,water:true,weighin:true,weekly:true,logcheck:true,times:{lunch:"12:30",dinner:"19:00",water:"14:00",weighin:"06:45",weekly:"18:00",weeklyDay:"Sun",logcheck:"20:30"}}, photoEnabled:true, swipeNav:true, apiKey:"", model:"claude-sonnet-4-6"},
   log:[],            // {id,date,meal,name,cal,pro,carb,fat,cat}
   weights:[],        // {date,lb}
   water:{},          // {date: oz}
@@ -793,7 +801,7 @@ function renderWeekly(){
     <div class="r"><span class="k">Weight change (7d)</span><span>${wChange==null?"—":(wChange<=0?"−":"+")+Math.abs(wChange)+" lb"}</span></div>
   </div>`;
 }
-let wPanOffset=0;   // days the 30-day window is shifted into the past (0 = window ends today)
+let wPanOffset=0, wRange="1M";   // wRange: 1M (daily) / 3M / 6M / All (weekly averages)
 function renderWeight(){
   renderWeekly();
   const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
@@ -802,27 +810,36 @@ function renderWeight(){
   $("#wCurrent").textContent = cur!=null? cur+" lb":"—";
   $("#wLost").textContent = (cur!=null)? (start-cur>=0?"−":"+")+Math.abs(+(start-cur).toFixed(1))+" lb":"—";
   $("#wToGo").textContent = (cur!=null)? Math.max(0,+(cur-goal).toFixed(1))+" lb":"—";
+  document.querySelectorAll("#wRangeSeg button").forEach(b=>b.classList.toggle("on",b.dataset.range===wRange));
   drawWeightChart();
 }
-function wMaxOffset(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); if(!w.length) return 0; const earliest=Math.round((parseYmd(today())-parseYmd(w[0].date))/86400000); return Math.max(0, earliest-29); }
+function wFullSpan(){ const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1); if(!w.length) return 0; return Math.round((parseYmd(today())-parseYmd(w[0].date))/86400000); }
+function wSpan(){ return wRange==="1M"?30 : wRange==="3M"?91 : wRange==="6M"?182 : Math.max(30, wFullSpan()+1); }
+function wMaxOffset(){ if(wRange==="All") return 0; return Math.max(0, wFullSpan()-(wSpan()-1)); }
 function drawWeightChart(){
   const svg=$("#wChart"); if(!svg) return; svg.innerHTML="";
   const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
-  const W=320,H=170,pad=14,WIN=30;
+  const W=320,H=170,pad=14, SPAN=wSpan(), weekly=(wRange!=="1M");
   const start=S.settings.startWeight, goal=S.settings.goalWeight;
   const vals=w.map(p=>p.lb);
   const minV=Math.min(...(vals.length?vals:[goal]),goal)-2, maxV=Math.max(...(vals.length?vals:[start]),start)+2;
-  const Y=v=> H-pad - (v-minV)/((maxV-minV)||1)*(H-2*pad);           // fixed y-scale so panning only moves time
-  const dayIdx=d=> Math.round((parseYmd(d)-parseYmd(today()))/86400000);   // 0=today, -1=yesterday
+  const Y=v=> H-pad - (v-minV)/((maxV-minV)||1)*(H-2*pad);                     // fixed y-scale so panning only moves time
+  const dayIdx=d=> Math.round((parseYmd(d)-parseYmd(today()))/86400000);      // 0=today, -1=yesterday
+  let all=w.map(p=>({idx:dayIdx(p.date),lb:p.lb}));
+  if(weekly){                                                                 // aggregate to weekly averages for the longer ranges
+    const b={}; all.forEach(p=>{ const k=Math.floor((-p.idx)/7); (b[k]=b[k]||[]).push(p); });
+    all=Object.values(b).map(a=>({ idx:Math.round(a.reduce((s,p)=>s+p.idx,0)/a.length), lb:+(a.reduce((s,p)=>s+p.lb,0)/a.length).toFixed(1) }));
+  }
+  all.sort((a,b)=>a.idx-b.idx);
   wPanOffset=Math.max(0, Math.min(wPanOffset, wMaxOffset()));
-  const endIdx=-wPanOffset, startIdx=endIdx-(WIN-1);
-  const X=idx=> pad + (idx-startIdx)/(WIN-1)*(W-2*pad);
+  const endIdx = wRange==="All" ? 0 : -wPanOffset;
+  const startIdx = endIdx-(SPAN-1);
+  const X=idx=> pad + (idx-startIdx)/((SPAN-1)||1)*(W-2*pad);
   const gy=Y(goal);
   svg.insertAdjacentHTML("beforeend",`<line x1="${pad}" y1="${gy.toFixed(1)}" x2="${W-pad}" y2="${gy.toFixed(1)}" stroke="#cfe6da" stroke-width="1.5" stroke-dasharray="4 4"/>`);
   svg.insertAdjacentHTML("beforeend",`<text x="${W-pad}" y="${(gy-5).toFixed(1)}" text-anchor="end" font-size="9" fill="#7b8694">goal ${goal}</text>`);
-  const all=w.map(p=>({idx:dayIdx(p.date),lb:p.lb})).sort((a,b)=>a.idx-b.idx);
   const inside=all.filter(p=>p.idx>=startIdx&&p.idx<=endIdx);
-  const leftN=all.filter(p=>p.idx<startIdx).slice(-1), rightN=all.filter(p=>p.idx>endIdx).slice(0,1);   // neighbors keep the line continuous at the edges (SVG clips the overflow)
+  const leftN=all.filter(p=>p.idx<startIdx).slice(-1), rightN=all.filter(p=>p.idx>endIdx).slice(0,1);   // neighbors keep the line continuous at the edges (SVG clips overflow)
   const pts=[...leftN,...inside,...rightN];
   if(pts.length){
     let d=""; pts.forEach((p,i)=>{ d+=(i?"L":"M")+X(p.idx).toFixed(1)+" "+Y(p.lb).toFixed(1)+" "; });
@@ -831,20 +848,22 @@ function drawWeightChart(){
       svg.insertAdjacentHTML("beforeend",`<path d="${area}" fill="rgba(47,143,91,.08)"/>`);
       svg.insertAdjacentHTML("beforeend",`<path d="${d}" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>`);
     }
-    inside.forEach(p=>{ svg.insertAdjacentHTML("beforeend",`<circle cx="${X(p.idx).toFixed(1)}" cy="${Y(p.lb).toFixed(1)}" r="3.4" fill="#fff" stroke="var(--accent)" stroke-width="2"/>`); });
+    const r=weekly?3.0:3.4;
+    inside.forEach(p=>{ svg.insertAdjacentHTML("beforeend",`<circle cx="${X(p.idx).toFixed(1)}" cy="${Y(p.lb).toFixed(1)}" r="${r}" fill="#fff" stroke="var(--accent)" stroke-width="2"/>`); });
   }
-  const lab=$("#wRange"); if(lab){ const f=n=>parseYmd(shiftDay(today(),n)).toLocaleDateString(undefined,{month:"short",day:"numeric"}); lab.textContent=f(startIdx)+" – "+f(endIdx)+(wMaxOffset()>0?"  ·  drag to scroll":""); }
+  const lab=$("#wRange"); if(lab){ const f=n=>parseYmd(shiftDay(today(),n)).toLocaleDateString(undefined,{month:"short",day:"numeric"}); lab.textContent=f(startIdx)+" – "+f(endIdx)+(weekly?" · weekly avg":"")+(wMaxOffset()>0?" · drag to scroll":""); }
 }
+document.querySelectorAll("#wRangeSeg button").forEach(b=>b.onclick=()=>{ wRange=b.dataset.range; wPanOffset=0; document.querySelectorAll("#wRangeSeg button").forEach(x=>x.classList.toggle("on",x===b)); drawWeightChart(); });
 // horizontal drag on the weight chart pans through time (vertical drags still scroll the page)
 (function(){
   const svg=$("#wChart"); if(!svg) return;
   let sx=0,sy=0,startOff=0,lock=null,cw=1;
-  svg.addEventListener("touchstart",e=>{ if(e.touches.length!==1){lock="v";return;} const t=e.touches[0]; sx=t.clientX; sy=t.clientY; startOff=wPanOffset; lock=null; cw=svg.getBoundingClientRect().width||300; },{passive:true});
+  svg.addEventListener("touchstart",e=>{ if(e.touches.length!==1||wRange==="All"){lock="v";return;} const t=e.touches[0]; sx=t.clientX; sy=t.clientY; startOff=wPanOffset; lock=null; cw=svg.getBoundingClientRect().width||300; },{passive:true});
   svg.addEventListener("touchmove",e=>{
     if(lock==="v") return;
     const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(lock===null){ if(Math.abs(dx)>6 && Math.abs(dx)>Math.abs(dy)) lock="h"; else if(Math.abs(dy)>6){ lock="v"; return; } else return; }
-    if(lock==="h"){ e.preventDefault(); wPanOffset=Math.max(0, Math.min(startOff + dx/cw*30, wMaxOffset())); drawWeightChart(); }
+    if(lock==="h"){ e.preventDefault(); wPanOffset=Math.max(0, Math.min(startOff + dx/cw*wSpan(), wMaxOffset())); drawWeightChart(); }
   },{passive:false});
   function endPan(){ if(lock==="h"){ wPanOffset=Math.round(wPanOffset); drawWeightChart(); } lock=null; }
   svg.addEventListener("touchend",endPan,{passive:true});
@@ -866,6 +885,7 @@ function renderSettings(){
   $("#setStart").value=S.settings.startWeight;
   $("#setGoal").value=S.settings.goalWeight;
   $("#togPhoto").classList.toggle("on",S.settings.photoEnabled);
+  $("#togSwipeNav").classList.toggle("on",S.settings.swipeNav!==false);
   const rem=S.settings.reminders||{};
   $("#togRem").classList.toggle("on",!!rem.enabled);
   $("#remWrap").classList.toggle("hidden",!rem.enabled);
@@ -887,6 +907,7 @@ function renderSettings(){
 
 /* ---------- tabs ---------- */
 function showTab(t){
+  document.querySelectorAll("section.peek").forEach(s=>{ s.classList.remove("peek"); s.style.transition=""; s.style.transform=""; });   // clear any in-flight peek
   ["today","weight","learn","settings"].forEach(v=>$("#view-"+v).classList.toggle("hidden",v!==t));
   document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
   const head=document.querySelector("header.app");
@@ -904,37 +925,45 @@ function anyOverlayOpen(){ return ["#addSheet","#insightWrap","#dcWrap","#onb"].
 function navToTab(t,dir){ showTab(t); const sec=document.querySelector("#view-"+t); if(sec){ sec.classList.remove("tab-in-r","tab-in-l"); void sec.offsetWidth; sec.classList.add(dir>0?"tab-in-r":"tab-in-l"); } }
 (function(){
   const main=document.querySelector("main.wrap");
-  let sx=0,sy=0,lock=null,cur=null,vw=1;
+  let sx=0,sy=0,lock=null,cur=null,vw=1,peekEl=null,peekDir=0;
   const neighbor=dir=>{ const i=TAB_ORDER.indexOf(currentTab()), ni=i+dir; return (ni>=0&&ni<TAB_ORDER.length)?TAB_ORDER[ni]:null; };
+  function renderTab(t){ if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn")renderLearn(); else if(t==="settings")renderSettings(); }
+  function mountPeek(dir){ const nb=neighbor(dir); if(!nb) return; const el=$("#view-"+nb); renderTab(nb); el.classList.remove("hidden"); el.classList.add("peek"); el.style.transition="none"; el.style.transform="translateX("+(dir>0?vw:-vw)+"px)"; peekEl=el; peekDir=dir; }
+  function unmountPeek(){ if(peekEl){ peekEl.classList.remove("peek"); peekEl.style.transition=""; peekEl.style.transform=""; peekEl.classList.add("hidden"); peekEl=null; } peekDir=0; }
   main.addEventListener("touchstart",e=>{
-    if(e.touches.length!==1 || anyOverlayOpen() || (e.target.closest && e.target.closest("[data-hpan]"))){ lock="v"; cur=null; return; }
-    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; lock=null; vw=main.clientWidth||window.innerWidth; cur=document.querySelector("#view-"+currentTab());
+    if(S.settings.swipeNav===false || e.touches.length!==1 || anyOverlayOpen() || (e.target.closest && e.target.closest("[data-hpan]"))){ lock="v"; cur=null; return; }
+    const t=e.touches[0]; sx=t.clientX; sy=t.clientY; lock=null; vw=main.clientWidth||window.innerWidth; cur=$("#view-"+currentTab());
   },{passive:true});
   main.addEventListener("touchmove",e=>{
     if(lock==="v"||!cur) return;
     const t=e.touches[0], dx=t.clientX-sx, dy=t.clientY-sy;
     if(lock===null){
       if(Math.abs(dx)>8 && Math.abs(dx)>Math.abs(dy)){ lock="h"; cur.style.transition="none"; }
-      else if(Math.abs(dy)>6){ lock="v"; return; }   // vertical → hand it back to the scroller, never capture
+      else if(Math.abs(dy)>6){ lock="v"; return; }   // vertical → hand it back to the scroller
       else return;
     }
     if(lock==="h"){
       e.preventDefault();
-      let d=dx; if(!neighbor(d<0?1:-1)) d=d/3.5;      // rubber-band at the ends
+      const dir=dx<0?1:-1, nb=neighbor(dir);
+      let d=dx; if(!nb) d=d/3.5;                      // rubber-band at the ends
+      if(nb && peekDir!==dir){ unmountPeek(); mountPeek(dir); }   // mount the neighbor peeking in from the correct side
+      else if(!nb && peekEl) unmountPeek();
       cur.style.transform="translateX("+d.toFixed(1)+"px)";
+      if(peekEl) peekEl.style.transform="translateX("+((dir>0?vw:-vw)+d).toFixed(1)+"px)";
     }
   },{passive:false});
   function end(e){
-    if(lock!=="h"||!cur){ lock=null; cur=null; return; }
-    const t=e.changedTouches[0], dx=t.clientX-sx, dir=dx<0?1:-1, nb=neighbor(dir), c=cur;
-    cur=null; lock=null;
-    c.style.transition="transform .2s cubic-bezier(.32,.72,0,1)";
-    if(nb && Math.abs(dx)>vw*0.22){
-      c.style.transform="translateX("+(dir<0?vw:-vw)+"px)";          // slide the current page off…
-      setTimeout(()=>{ c.style.transition=""; c.style.transform=""; navToTab(nb,dir); }, 175);   // …then bring the neighbor in
-    } else {
-      c.style.transform="";                                          // snap back
-      setTimeout(()=>{ c.style.transition=""; }, 220);
+    if(lock!=="h"||!cur){ if(cur){cur.style.transition="";cur.style.transform="";} unmountPeek(); cur=null; lock=null; return; }
+    const t=e.changedTouches[0], dx=t.clientX-sx, dir=dx<0?1:-1, nb=neighbor(dir), c=cur, pe=peekEl;
+    cur=null; lock=null; peekEl=null; peekDir=0;
+    const EASE="transform .19s cubic-bezier(.32,.72,0,1)";
+    c.style.transition=EASE; if(pe) pe.style.transition=EASE;
+    if(nb && pe && Math.abs(dx)>vw*0.22){                        // commit: slide current out, neighbor to center
+      c.style.transform="translateX("+(dir>0?-vw:vw)+"px)"; pe.style.transform="translateX(0)";
+      setTimeout(()=>{ pe.classList.remove("peek"); pe.style.transition=""; pe.style.transform=""; c.style.transition=""; c.style.transform=""; showTab(nb); },200);
+    } else {                                                     // snap back
+      c.style.transform=""; if(pe) pe.style.transform="translateX("+(dir>0?vw:-vw)+"px)";
+      setTimeout(()=>{ c.style.transition=""; if(pe){ pe.classList.remove("peek"); pe.style.transition=""; pe.style.transform=""; pe.classList.add("hidden"); } },210);
     }
   }
   main.addEventListener("touchend",end,{passive:true});
@@ -1160,6 +1189,7 @@ async function analyzePhoto(b64,mime){
 
 /* ---------- settings handlers ---------- */
 $("#togPhoto").onclick=()=>{ S.settings.photoEnabled=!S.settings.photoEnabled; save(); renderSettings(); };
+$("#togSwipeNav").onclick=()=>{ S.settings.swipeNav=(S.settings.swipeNav===false); save(); renderSettings(); };
 const bindNum=(id,key,isFloat)=>{ $(id).onchange=e=>{ const v=isFloat?parseFloat(e.target.value):parseInt(e.target.value); if(!isNaN(v)){S.settings[key]=v;save();} }; };
 bindNum("#setCal","calTarget"); bindNum("#setPro","proTarget");
 bindNum("#setStart","startWeight",1); bindNum("#setGoal","goalWeight",1); bindNum("#setWater","waterGoal");
