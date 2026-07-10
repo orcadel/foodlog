@@ -43,6 +43,11 @@
     display:grid;place-items:center;font-size:18px;color:var(--ink);cursor:pointer}
   .navbtn:active{background:var(--track)}
   section{padding-top:14px}
+  main.wrap.no-head{padding-top:calc(4px + var(--safe-top))}
+  @keyframes tabInR{from{transform:translateX(26px);opacity:.35}to{transform:none;opacity:1}}
+  @keyframes tabInL{from{transform:translateX(-26px);opacity:.35}to{transform:none;opacity:1}}
+  .tab-in-r{animation:tabInR .19s cubic-bezier(.32,.72,0,1)}
+  .tab-in-l{animation:tabInL .19s cubic-bezier(.32,.72,0,1)}
   .card{background:var(--card);border-radius:16px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
   h2.title{font-size:13px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin:2px 2px 10px;font-weight:650}
 
@@ -583,7 +588,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=30;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=31;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -857,9 +862,33 @@ function showTab(t){
   document.querySelectorAll("nav.tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));
   const head=document.querySelector("header.app");
   head.style.display = t==="today" ? "" : "none";
+  document.querySelector("main.wrap").classList.toggle("no-head", t!=="today");   // header carries the safe-area top pad; add it to main when header is hidden (clears the notch)
+  $("#view-"+t).classList.remove("tab-in-r","tab-in-l");   // clear any leftover swipe animation so bottom-nav switches don't replay it
+
   if(t==="today")renderToday(); if(t==="weight")renderWeight(); if(t==="learn"){ renderLearn(); generateInsight(false).catch(()=>{}); } if(t==="settings")renderSettings();
 }
 document.querySelectorAll("nav.tabs button").forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
+// ---- swipe left/right to move between tabs (A: switch-on-release + slide-in; clamp at the ends) ----
+const TAB_ORDER=["today","weight","learn","settings"];
+function currentTab(){ const on=document.querySelector("nav.tabs button.on"); return on?on.dataset.tab:"today"; }
+function anyOverlayOpen(){ return ["#addSheet","#insightWrap","#dcWrap","#onb"].some(s=>{ const el=document.querySelector(s); return el && el.classList.contains("show"); }); }
+function navToTab(t,dir){ showTab(t); const sec=document.querySelector("#view-"+t); if(sec){ sec.classList.remove("tab-in-r","tab-in-l"); void sec.offsetWidth; sec.classList.add(dir>0?"tab-in-r":"tab-in-l"); } }
+(function(){
+  let sx=0, sy=0, st=0, tracking=false;
+  document.body.addEventListener("touchstart",e=>{ if(e.touches.length!==1){ tracking=false; return; } const t=e.touches[0]; sx=t.clientX; sy=t.clientY; st=Date.now(); tracking=true; },{passive:true});
+  document.body.addEventListener("touchend",e=>{
+    if(!tracking) return; tracking=false;
+    if(anyOverlayOpen()) return;
+    const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy, dt=Date.now()-st;
+    if(Math.abs(dx)<60) return;                    // too small — a tap or tiny move
+    if(Math.abs(dx) < Math.abs(dy)*1.3) return;    // not clearly horizontal — leave vertical scroll alone
+    if(dt>700) return;                             // too slow to be a swipe
+    const i=TAB_ORDER.indexOf(currentTab());
+    const ni = dx<0 ? i+1 : i-1;                   // swipe left → next tab, right → previous
+    if(ni<0 || ni>=TAB_ORDER.length) return;       // clamp at the ends (no wrap)
+    navToTab(TAB_ORDER[ni], dx<0?1:-1);
+  },{passive:true});
+})();
 
 /* ---------- date nav ---------- */
 $("#prevDay").onclick=()=>{cursor=shiftDay(cursor,-1);renderToday();};
