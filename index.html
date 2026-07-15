@@ -134,6 +134,7 @@
   .sheet-x:active{filter:brightness(.94)}
   label.fl{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:12px 2px 5px;text-transform:uppercase;letter-spacing:.4px}
   input.f,select.f{width:100%;font-size:16px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--field);color:var(--ink);font-family:inherit}
+  input.f[type=date]{-webkit-appearance:none;appearance:none;min-width:0}  /* iOS: respect the column width instead of sizing to the date text */
   input.f:focus,select.f:focus{outline:none;border-color:var(--accent);background:var(--card)}
   .row2{display:flex;gap:10px} .row2>div{flex:1;min-width:0}
   .cats{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
@@ -207,6 +208,14 @@
   .acc-body .inner{padding:0 4px 16px;font-size:14px;line-height:1.6;color:var(--ink)}
   .acc-body .inner b{color:var(--ink);font-weight:650}
   .acc-body a{color:var(--accent);font-weight:640;text-decoration:none}
+  /* collapsible settings sections */
+  .collap-head{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;user-select:none;-webkit-user-select:none}
+  .collap-head .chev{color:var(--muted);font-size:20px;line-height:1;transition:transform .25s;flex:0 0 auto}
+  .card.collap-card.open .collap-head .chev{transform:rotate(90deg)}
+  .collap-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s ease}
+  .card.collap-card.open .collap-body{grid-template-rows:1fr}
+  .collap-inner{overflow:hidden;min-height:0}
+  .card.collap-card.open .collap-inner{padding-top:2px}
   /* weekly insight — twirl card */
   .twirl-wrap{position:fixed;inset:0;z-index:55;display:grid;place-items:center;pointer-events:none;perspective:1300px;padding:24px}
   .twirl-wrap.show{pointer-events:auto}
@@ -240,9 +249,10 @@
   .mchip.on .chipbar>i{background:#fff}
   .macro-detail{max-height:0;overflow:hidden;transition:max-height .28s ease}
   .macro-detail.open{max-height:600px;margin-top:8px}
-  .macro-detail .mrow{display:flex;justify-content:space-between;gap:10px;font-size:13.5px;padding:8px 4px;border-top:1px solid var(--line)}
+  .macro-detail .mrow{display:flex;justify-content:space-between;align-items:baseline;gap:10px;font-size:13.5px;padding:8px 4px;border-top:1px solid var(--line)}
   .macro-detail .mrow:first-child{border-top:none}
-  .macro-detail .mrow .k{color:var(--muted)}
+  .macro-detail .mrow>span:first-child{min-width:0;overflow-wrap:anywhere}
+  .macro-detail .mrow .k{color:var(--muted);white-space:nowrap;flex:0 0 auto;text-align:right}
   .item-card{display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:14px;cursor:pointer;border-left:4px solid var(--cat-Other)}
   .item-card:active{filter:brightness(.97)}
   .item-emoji{font-size:20px;flex:0 0 auto;line-height:1}
@@ -427,7 +437,16 @@
       </div>
     </div>
     <div class="card">
-      <h2 class="title">Daily targets</h2>
+      <h2 class="title">Photo recognition</h2>
+      <div class="set-row">
+        <div><div class="l">Smart photo add</div><div class="d">Snap a meal; AI estimates calories &amp; macros. When off, the camera button is hidden and nothing leaves your phone.</div></div>
+        <div class="toggle" id="togPhoto"><i></i></div>
+      </div>
+      <div class="hint">No setup needed — photo analysis runs through FoodLog's own secure service (no API key to enter). When off, the camera button is hidden and nothing leaves your phone.</div>
+    </div>
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Daily targets</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
         <div><div class="l">Calorie target</div><div class="d">Your daily ceiling for a deficit</div></div>
         <input class="set-input" id="setCal" type="number" inputmode="numeric">
@@ -448,19 +467,12 @@
         <div><div class="l">Goal weight (lb)</div></div>
         <input class="set-input" id="setGoal" type="number" inputmode="decimal">
       </div>
+      </div></div>
     </div>
 
-    <div class="card">
-      <h2 class="title">Photo recognition</h2>
-      <div class="set-row">
-        <div><div class="l">Smart photo add</div><div class="d">Snap a meal; AI estimates calories &amp; macros. When off, the camera button is hidden and nothing leaves your phone.</div></div>
-        <div class="toggle" id="togPhoto"><i></i></div>
-      </div>
-      <div class="hint">No setup needed — photo analysis runs through FoodLog's own secure service (no API key to enter). When off, the camera button is hidden and nothing leaves your phone.</div>
-    </div>
-
-    <div class="card">
-      <h2 class="title">Sync across devices</h2>
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Sync across devices</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
         <div><div class="l">Enable sync</div><div class="d">End-to-end encrypted. Use the <b>same passphrase</b> on every device.</div></div>
         <div class="toggle" id="togSync"><i></i></div>
@@ -473,10 +485,12 @@
         <button class="btn ghost" id="btnSyncNow">Sync now</button>
         <div class="camstatus" id="syncStatus" style="text-align:left"></div>
       </div>
+      </div></div>
     </div>
 
-    <div class="card">
-      <h2 class="title">Reminders</h2>
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Reminders</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
         <div><div class="l">Enable reminders</div><div class="d">Push notifications even when the app is closed. On iPhone, add the app to your Home Screen first.</div></div>
         <div class="toggle" id="togRem"><i></i></div>
@@ -500,16 +514,19 @@
         <button class="btn ghost" id="btnTestRem">Send a test notification</button>
         <div class="camstatus" id="remStatus" style="text-align:left"></div>
       </div>
+      </div></div>
     </div>
 
-    <div class="card">
-      <h2 class="title">Your data</h2>
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Your data</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="hint">Everything lives in this browser on this device. No account, no server. Export to back up or move devices.</div>
       <div style="height:8px"></div>
       <button class="btn ghost" id="btnExport">Export data (.json)</button>
       <div style="height:8px"></div>
       <button class="btn ghost" id="btnImport">Import data</button>
       <input type="file" id="importFile" accept="application/json" class="hidden">
+      </div></div>
     </div>
     <div class="hint" style="text-align:center">FoodLog · v1 · private PWA</div>
   </section>
@@ -624,7 +641,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=38;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=39;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -1197,6 +1214,12 @@ async function analyzePhoto(b64,mime){
 /* ---------- settings handlers ---------- */
 $("#togPhoto").onclick=()=>{ S.settings.photoEnabled=!S.settings.photoEnabled; save(); renderSettings(); };
 $("#togSwipeNav").onclick=()=>{ S.settings.swipeNav=(S.settings.swipeNav===false); save(); renderSettings(); };
+// Collapsible settings sections: start collapsed each session; open/closed state
+// is held in the live DOM (a class on the persistent .card), so it survives tab
+// navigation and resets to collapsed only on a full reload.
+document.querySelectorAll(".collap-card .collap-head").forEach(h=>{
+  h.addEventListener("click",()=>h.closest(".collap-card").classList.toggle("open"));
+});
 const bindNum=(id,key,isFloat)=>{ $(id).onchange=e=>{ const v=isFloat?parseFloat(e.target.value):parseInt(e.target.value); if(!isNaN(v)){S.settings[key]=v;save();} }; };
 bindNum("#setCal","calTarget"); bindNum("#setPro","proTarget");
 bindNum("#setStart","startWeight",1); bindNum("#setGoal","goalWeight",1); bindNum("#setWater","waterGoal");
