@@ -102,7 +102,7 @@
   .btn[disabled]{opacity:.5;pointer-events:none}
 
   /* bottom tab bar */
-  nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + var(--safe-bot));z-index:30;
+  nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(4px + var(--safe-bot));z-index:30;
     width:calc(100% - 32px);max-width:430px;background:var(--nav-bg);
     backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
     border:1px solid var(--line);border-radius:28px;box-shadow:0 8px 30px rgba(0,0,0,.18);
@@ -430,19 +430,24 @@
       <h2 class="title">Appearance</h2>
       <div class="seg" id="themeSeg"><button data-theme="auto">Auto</button><button data-theme="light">Light</button><button data-theme="dark">Dark</button></div>
     </div>
-    <div class="card">
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Glide</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
-        <div><div class="l">Glide</div><div class="d">Swipe left/right anywhere to move between tabs — the next one peeks in as you drag.</div></div>
+        <div><div class="l">Swipe between tabs</div><div class="d">Swipe left/right anywhere to move between tabs — the next one peeks in as you drag.</div></div>
         <div class="toggle" id="togSwipeNav"><i></i></div>
       </div>
+      </div></div>
     </div>
-    <div class="card">
-      <h2 class="title">Photo recognition</h2>
+    <div class="card collap-card">
+      <div class="collap-head"><h2 class="title" style="margin:0">Photo recognition</h2><span class="chev">›</span></div>
+      <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
         <div><div class="l">Smart photo add</div><div class="d">Snap a meal; AI estimates calories &amp; macros. When off, the camera button is hidden and nothing leaves your phone.</div></div>
         <div class="toggle" id="togPhoto"><i></i></div>
       </div>
       <div class="hint">No setup needed — photo analysis runs through FoodLog's own secure service (no API key to enter). When off, the camera button is hidden and nothing leaves your phone.</div>
+      </div></div>
     </div>
     <div class="card collap-card">
       <div class="collap-head"><h2 class="title" style="margin:0">Daily targets</h2><span class="chev">›</span></div>
@@ -641,7 +646,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=40;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=41;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
