@@ -14,21 +14,21 @@
   :root{
     --bg:#f5f6f8; --card:#ffffff; --ink:#1c2127; --muted:#7b8694; --line:#e7eaee;
     --accent:#2f8f5b; --accent-soft:#e6f3ec; --danger:#d94b46; --shadow:0 1px 3px rgba(20,30,45,.08),0 1px 1px rgba(20,30,45,.04);
-    --press:#eef0f3; --soft:#f7f8fa; --field:#fbfcfd; --track:#eef0f3; --toggle-off:#d3d8de; --header-bg:rgba(245,246,248,.86); --nav-bg:rgba(255,255,255,.92);
+    --press:#eef0f3; --soft:#f7f8fa; --field:#fbfcfd; --track:#eef0f3; --toggle-off:#d3d8de; --header-bg:rgba(245,246,248,.86); --nav-bg:rgba(255,255,255,.78);
     --cat-Vegetables:#3fa34d; --cat-Fruit:#f2a541; --cat-Meat:#e0543f; --cat-Grains:#c98a3a; --cat-Dairy:#7eb6e0;
     --cat-Fats:#9a9b4a; --cat-Drinks:#18a0b8; --cat-Treats:#b06cc4; --cat-Other:#9aa5b1;
     --cat-Protein:#e0543f; --cat-Carbs:#c98a3a;
     --safe-top:env(safe-area-inset-top); --safe-bot:env(safe-area-inset-bottom);
   }
-  :root[data-theme="dark"]{--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);}
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.94);} }
+  :root[data-theme="dark"]{--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.80);}
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--bg:#0f1216; --card:#1a1f26; --ink:#e8ebef; --muted:#8c97a5; --line:#2a313a;--accent:#46b07a; --accent-soft:#16331f; --danger:#e8635d; --shadow:0 1px 3px rgba(0,0,0,.5);--press:#262d36; --soft:#232a33; --field:#20262e; --track:#2a313a; --toggle-off:#3a424d;--header-bg:rgba(15,18,22,.86); --nav-bg:rgba(18,22,28,.80);} }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   html,body{margin:0;padding:0}
   body{
     font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
     background:var(--bg);color:var(--ink);
     -webkit-font-smoothing:antialiased;
-    padding-bottom:calc(72px + var(--safe-bot));
+    padding-bottom:calc(96px + var(--safe-bot));
   }
   .wrap{max-width:540px;margin:0 auto;padding:0 16px}
   header.app{
@@ -102,12 +102,14 @@
   .btn[disabled]{opacity:.5;pointer-events:none}
 
   /* bottom tab bar */
-  nav.tabs{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--nav-bg);
-    backdrop-filter:saturate(160%) blur(12px);border-top:1px solid var(--line);
-    display:flex;padding:6px 0 calc(6px + var(--safe-bot))}
+  nav.tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + var(--safe-bot));z-index:30;
+    width:calc(100% - 32px);max-width:430px;background:var(--nav-bg);
+    backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+    border:1px solid var(--line);border-radius:28px;box-shadow:0 8px 30px rgba(0,0,0,.18);
+    display:flex;gap:3px;padding:6px}
   nav.tabs button{flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
-    color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer;padding:6px 0}
-  nav.tabs button.on{color:var(--accent)}
+    color:var(--muted);font-size:10.5px;font-weight:600;cursor:pointer;padding:8px 0;border-radius:20px;transition:background .18s}
+  nav.tabs button.on{color:var(--accent);background:var(--accent-soft)}
   nav.tabs .ic{font-size:21px;line-height:1;color:#2563eb}
 
   /* sheet / modal */
@@ -133,7 +135,7 @@
   label.fl{display:block;font-size:12px;color:var(--muted);font-weight:600;margin:12px 2px 5px;text-transform:uppercase;letter-spacing:.4px}
   input.f,select.f{width:100%;font-size:16px;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:var(--field);color:var(--ink);font-family:inherit}
   input.f:focus,select.f:focus{outline:none;border-color:var(--accent);background:var(--card)}
-  .row2{display:flex;gap:10px} .row2>div{flex:1}
+  .row2{display:flex;gap:10px} .row2>div{flex:1;min-width:0}
   .cats{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
   .cat{font-size:13px;font-weight:600;padding:8px 12px;border-radius:11px;border:1.5px solid var(--line);background:var(--field);cursor:pointer;color:var(--muted)}
   .cat.on{color:#fff;border-color:transparent}
@@ -152,6 +154,15 @@
   .recent .k{font-size:13px;color:var(--muted);font-weight:560}
   .camstatus{font-size:13px;color:var(--muted);text-align:center;padding:6px;min-height:20px}
   .camstatus.err{color:var(--danger)}
+
+  /* water ring */
+  .water-row{display:flex;gap:16px;align-items:center}
+  .water-left{flex:1;min-width:0}
+  .water-ring{position:relative;width:128px;height:128px;flex:0 0 auto}
+  #waterRing{transition:stroke-dashoffset .35s ease}
+  .water-ring-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.02}
+  .water-ring-txt #waterOz{font-size:27px;font-weight:800;letter-spacing:-.5px;color:var(--ink)}
+  .water-ring-txt #waterGoalOz{font-size:14px;font-weight:500;color:var(--muted);margin-top:3px}
 
   /* weight */
   .wstats{display:flex;gap:10px;margin-bottom:14px}
@@ -290,16 +301,28 @@
     </div>
 
     <div class="card" id="waterCard">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
-        <h2 class="title" style="margin:0">Water</h2>
-        <span id="waterAmt" style="font-size:13px;color:var(--muted);font-weight:600"></span>
-      </div>
-      <div class="bar" style="height:10px"><i id="waterBar" style="width:0%;background:#18a0b8"></i></div>
-      <div style="display:flex;gap:7px;margin-top:13px">
-        <button class="btn ghost" id="water8" style="flex:1">+8</button>
-        <button class="btn ghost" id="water12" style="flex:1">+12</button>
-        <button class="btn ghost" id="water16" style="flex:1">+16</button>
-        <button class="btn ghost" id="waterMinus" style="flex:0 0 46px">−</button>
+      <div class="water-row">
+        <div class="water-left">
+          <h2 class="title" style="margin:0 0 12px">Water</h2>
+          <div style="display:flex;gap:7px">
+            <button class="btn ghost" id="water8" style="flex:1">+8</button>
+            <button class="btn ghost" id="water12" style="flex:1">+12</button>
+            <button class="btn ghost" id="water16" style="flex:1">+16</button>
+            <button class="btn ghost" id="waterMinus" style="flex:0 0 44px">−</button>
+          </div>
+        </div>
+        <div class="water-ring">
+          <svg width="128" height="128" viewBox="0 0 128 128">
+            <circle cx="64" cy="64" r="56" fill="none" class="ring-track" stroke-width="13"/>
+            <circle id="waterRing" cx="64" cy="64" r="56" fill="none" stroke="#18a0b8" stroke-width="13"
+                    stroke-linecap="round" transform="rotate(-90 64 64)"
+                    stroke-dasharray="351.86" stroke-dashoffset="351.86"/>
+          </svg>
+          <div class="water-ring-txt">
+            <div id="waterOz">0</div>
+            <div id="waterGoalOz">64</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -309,19 +332,19 @@
   <!-- WEIGHT -->
   <section id="view-weight" class="pane">
     <div class="card">
-      <h2 class="title">This week</h2>
-      <div id="weeklyBox"></div>
-    </div>
-    <div class="card">
       <h2 class="title">Progress</h2>
-      <div class="wstats">
+      <div class="seg" id="wRangeSeg" style="margin:6px 0 9px"><button data-range="1W">1W</button><button data-range="1M" class="on">1M</button><button data-range="3M">3M</button><button data-range="6M">6M</button><button data-range="All">All</button></div>
+      <svg class="chart" id="wChart" data-hpan viewBox="0 0 320 170" preserveAspectRatio="none" style="touch-action:pan-y"></svg>
+      <div id="wRange" class="hint" style="text-align:center;margin-top:2px"></div>
+      <div class="wstats" style="margin:16px 0 0">
         <div class="wstat"><div class="v" id="wCurrent">—</div><div class="k">Current</div></div>
         <div class="wstat"><div class="v good" id="wLost">—</div><div class="k">Lost</div></div>
         <div class="wstat"><div class="v" id="wToGo">—</div><div class="k">To Goal</div></div>
       </div>
-      <div class="seg" id="wRangeSeg" style="margin:6px 0 9px"><button data-range="1W">1W</button><button data-range="1M" class="on">1M</button><button data-range="3M">3M</button><button data-range="6M">6M</button><button data-range="All">All</button></div>
-      <svg class="chart" id="wChart" data-hpan viewBox="0 0 320 170" preserveAspectRatio="none" style="touch-action:pan-y"></svg>
-      <div id="wRange" class="hint" style="text-align:center;margin-top:2px"></div>
+    </div>
+    <div class="card">
+      <h2 class="title">This week</h2>
+      <div id="weeklyBox"></div>
     </div>
     <div class="card">
       <h2 class="title">Log a weigh-in</h2>
@@ -601,7 +624,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=37;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=38;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -769,8 +792,10 @@ $("#macroRow").addEventListener("click",e=>{ const b=e.target.closest(".mchip");
 /* ---------- WATER ---------- */
 function updateWaterCard(){
   const oz=S.water[cursor]||0, goal=S.settings.waterGoal||64;
-  $("#waterAmt").textContent = oz+" / "+goal+" oz";
-  $("#waterBar").style.width = Math.min(oz/goal*100,100)+"%";
+  const C=351.86, pct=Math.min(oz/(goal||1),1);
+  const on=$("#waterOz"); if(on) on.textContent=oz;
+  const gn=$("#waterGoalOz"); if(gn) gn.textContent=goal;
+  const ring=$("#waterRing"); if(ring) ring.style.strokeDashoffset=C*(1-pct);
 }
 function addWater(oz){ S.water[cursor]=Math.max(0,(S.water[cursor]||0)+oz); save(); updateWaterCard(); }
 $("#water8").onclick=()=>addWater(8);
