@@ -443,7 +443,7 @@
       <div class="collap-head"><h2 class="title" style="margin:0">Photo recognition</h2><span class="chev">›</span></div>
       <div class="collap-body"><div class="collap-inner">
       <div class="set-row">
-        <div><div class="l">Smart photo add</div><div class="d">Snap a meal; AI estimates calories &amp; macros. When off, the camera button is hidden and nothing leaves your phone.</div></div>
+        <div><div class="l">Smart AI add</div><div class="d">Snap a photo or type a meal (e.g. "steak and asparagus") and AI estimates calories &amp; macros. When off, both are hidden and nothing leaves your phone.</div></div>
         <div class="toggle" id="togPhoto"><i></i></div>
       </div>
       <div class="hint">No setup needed — photo analysis runs through FoodLog's own secure service (no API key to enter). When off, the camera button is hidden and nothing leaves your phone.</div>
@@ -553,6 +553,13 @@
   <button class="btn cam" id="camBtn"><span style="font-size:18px">📷</span> Snap a photo</button>
   <input type="file" id="camInput" accept="image/*" capture="environment" class="hidden">
   <div class="camstatus" id="camStatus"></div>
+  <div id="aiDescRow">
+    <div style="display:flex;gap:8px;align-items:stretch;margin-top:4px">
+      <input class="f" id="aiDesc" placeholder="…or describe it — e.g. steak and asparagus" style="flex:1;min-width:0">
+      <button class="btn ghost" id="aiBtn" style="flex:0 0 auto;white-space:nowrap">✨ Estimate</button>
+    </div>
+    <div class="camstatus" id="aiStatus"></div>
+  </div>
 
   <label class="fl">Food</label>
   <input class="f" id="fName" placeholder="e.g. Greek yogurt">
@@ -646,7 +653,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=42;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=43;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -826,8 +833,8 @@ $("#water16").onclick=()=>addWater(16);
 $("#waterMinus").onclick=()=>addWater(-8);
 
 /* ---------- WEIGHT ---------- */
-function isFullDay(d){ return (S.dayStatus&&S.dayStatus[d])==="full"; }
-function isPartialDay(d){ return !isFullDay(d) && ((S.dayStatus&&S.dayStatus[d]==="partial") || S.log.some(x=>x.date===d)); }
+function isPartialDay(d){ return (S.dayStatus&&S.dayStatus[d])==="partial"; }   // partial ONLY if you explicitly tapped "Partial"
+function isFullDay(d){ if(isPartialDay(d)) return false; return ((S.dayStatus&&S.dayStatus[d])==="full") || S.log.some(x=>x.date===d); }   // a day with logged food counts as full by default; empty unmarked days are neither (excluded)
 function renderWeekly(){
   const days=[]; for(let i=0;i<7;i++) days.push(shiftDay(today(),-i));
   const logged=days.filter(d=>S.log.some(x=>x.date===d));
@@ -1051,8 +1058,10 @@ function openSheet(meal, entry){
   $("#sheetTitle").textContent = entry ? "Edit food" : "Add food";
   $("#saveFood").textContent   = entry ? "Save changes" : "Add to log";
   $("#camStatus").textContent=""; $("#camStatus").className="camstatus";
+  $("#aiStatus").textContent=""; $("#aiStatus").className="camstatus"; $("#aiDesc").value="";
   $("#macroFields").classList.toggle("open", !!(entry && (entry.pro||entry.carb||entry.fat||entry.sugar)));
   $("#camBtn").classList.toggle("hidden",!S.settings.photoEnabled);
+  $("#aiDescRow").classList.toggle("hidden",!S.settings.photoEnabled);   // text estimate uses the same AI proxy — gate with the same toggle
   renderRecents();
   if(entry) $("#recentsWrap").style.display="none";
   $("#scrim").classList.add("show"); $("#addSheet").classList.add("show");
@@ -1166,23 +1175,53 @@ $("#camInput").onchange=async e=>{
     const {b64,mime}=await downscale(file);
     st.textContent="Analyzing with Claude…";
     const data=await analyzePhoto(b64,mime);
-    $("#fName").value=data.name||"";
-    $("#fCal").value=data.calories!=null?Math.round(data.calories):"";
-    $("#fPro").value=data.protein_g!=null?Math.round(data.protein_g):"";
-    $("#fCarb").value=data.carbs_g!=null?Math.round(data.carbs_g):"";
-    $("#fFat").value=data.fat_g!=null?Math.round(data.fat_g):"";
-    $("#fSugar").value=data.sugar_g!=null?Math.round(data.sugar_g):"";
-    let comps=Array.isArray(data.components)?data.components.filter(k=>CATS.includes(k.category)&&(+k.calories||0)>0):[];
-    if(!comps.length && CATS.includes(data.category)) comps=[{category:data.category, calories:data.calories||0}];
-    chosenCats=comps.map(k=>k.category); if(!chosenCats.length) chosenCats=["Other"];
-    splitEdited=chosenCats.length>=2; buildCats();
-    if(chosenCats.length>=2){ const map={}; comps.forEach(k=>map[k.category]=Math.round(+k.calories||0)); document.querySelectorAll("#splitRow .split-in").forEach(i=>i.value=map[i.dataset.cat]||0); syncSplitTotal(); }
-    $("#macroFields").classList.add("open");
-    st.textContent = (data.portion? "≈ "+data.portion+" · ":"")+"estimate — adjust if needed";
+    applyEstimate(data, st);
   }catch(err){
     st.className="camstatus err"; st.textContent = "Couldn't read that — "+(err.message||"try again")+". You can still type it in.";
   }
 };
+// Shared: apply an AI nutrition estimate (from photo OR typed description) to the Add-food form.
+function applyEstimate(data, st){
+  $("#fName").value=data.name||"";
+  $("#fCal").value=data.calories!=null?Math.round(data.calories):"";
+  $("#fPro").value=data.protein_g!=null?Math.round(data.protein_g):"";
+  $("#fCarb").value=data.carbs_g!=null?Math.round(data.carbs_g):"";
+  $("#fFat").value=data.fat_g!=null?Math.round(data.fat_g):"";
+  $("#fSugar").value=data.sugar_g!=null?Math.round(data.sugar_g):"";
+  let comps=Array.isArray(data.components)?data.components.filter(k=>CATS.includes(k.category)&&(+k.calories||0)>0):[];
+  if(!comps.length && CATS.includes(data.category)) comps=[{category:data.category, calories:data.calories||0}];
+  chosenCats=comps.map(k=>k.category); if(!chosenCats.length) chosenCats=["Other"];
+  splitEdited=chosenCats.length>=2; buildCats();
+  if(chosenCats.length>=2){ const map={}; comps.forEach(k=>map[k.category]=Math.round(+k.calories||0)); document.querySelectorAll("#splitRow .split-in").forEach(i=>i.value=map[i.dataset.cat]||0); syncSplitTotal(); }
+  $("#macroFields").classList.add("open");
+  if(st) st.textContent = (data.portion? "≈ "+data.portion+" · ":"")+"estimate — adjust if needed";
+}
+async function estimateText(desc){
+  const r=await fetch("https://foodlog-sync.dtgruner.workers.dev/estimate",{
+    method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({text:desc})
+  });
+  if(!r.ok){
+    let m="HTTP "+r.status; try{const j=await r.json(); m=j.error||m;}catch(e){}
+    if(r.status===429) m="daily estimate limit reached — try again tomorrow";
+    if(r.status===503) m="estimate service not set up yet";
+    throw new Error(m);
+  }
+  const j=await r.json(); const txt=j.text||"";
+  const m=txt.match(/\{[\s\S]*\}/); if(!m) throw new Error("no estimate returned");
+  return JSON.parse(m[0]);
+}
+async function runEstimate(){
+  const desc=$("#aiDesc").value.trim();
+  if(!desc){ $("#aiDesc").focus(); return; }
+  const st=$("#aiStatus"); st.className="camstatus"; st.textContent="Estimating with Claude…";
+  $("#aiBtn").disabled=true;
+  try{ applyEstimate(await estimateText(desc), st); }
+  catch(err){ st.className="camstatus err"; st.textContent="Couldn't estimate — "+(err.message||"try again")+". You can still type it in."; }
+  finally{ $("#aiBtn").disabled=false; }
+}
+$("#aiBtn").onclick=runEstimate;
+$("#aiDesc").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); runEstimate(); } });
 function downscale(file){
   return new Promise((res,rej)=>{
     const img=new Image(); const url=URL.createObjectURL(file);
@@ -1268,7 +1307,8 @@ function mergeRemote(r){
   settings.apiKey=S.settings.apiKey;                                                 // keep local API key, never sync it
   settings.reminders=S.settings.reminders;                                           // reminders are device-local
   const water=Object.assign({}, older.water||{}, newer.water||{});
-  return {settings, log, weights:Object.values(wd), water, deleted:[...deleted],
+  const dayStatus=Object.assign({}, older.dayStatus||{}, newer.dayStatus||{});   // preserve/merge day full/partial marks across sync (were being dropped every sync)
+  return {settings, log, weights:Object.values(wd), water, dayStatus, deleted:[...deleted],
           updatedAt:Math.max(S.updatedAt||0,r.updatedAt||0), sync:S.sync, insight:S.insight, onboarded:S.onboarded};
 }
 function setSyncStatus(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }

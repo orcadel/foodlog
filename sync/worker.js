@@ -14,6 +14,8 @@ const VISION_MODEL = "claude-sonnet-4-6";
 const MAX_VISION_PER_DAY = 200;          // hard daily spend cap (~$2/day) — the real abuse protection
 const ALLOWED_ORIGINS = ["https://orcadel.github.io"]; // add capacitor origin when the app is wrapped
 const VISION_PROMPT = `You are a nutrition estimator. Identify the food in this photo and estimate its nutrition for the portion shown. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string naming the overall dish/plate), calories (integer — total for everything shown), protein_g (number), carbs_g (number), fat_g (number), sugar_g (number of grams of sugar), components (an array that breaks the plate into its food TYPES — each element {category, calories}, where category is one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other, and calories is that type's share of the total; include EVERY type genuinely present, e.g. a chicken salad → Vegetables + Meat, plus Fats for dressing or Grains for croutons if visible; the components' calories should sum to the total calories; if the dish is genuinely a single type, return one component), category (the single dominant food type, same enum, for back-compat), portion (short string like "1 bowl"). Keep it ONE dish but split its calories across the component food types.`;
+// Text nutrition estimate proxy. Same JSON contract as VISION_PROMPT, but from a typed description.
+const TEXT_PROMPT = `You are a nutrition estimator. The user describes a meal in words; estimate its nutrition for a typical single-serving portion unless the text specifies an amount. Respond with ONLY a JSON object, no markdown or prose, with keys: name (short string naming the meal), calories (integer — total), protein_g (number), carbs_g (number), fat_g (number), sugar_g (number of grams of sugar), components (an array breaking the meal into its food TYPES — each element {category, calories}, where category is one of: Vegetables, Fruit, Meat, Grains, Dairy, Fats, Drinks, Treats, Other, and calories is that type's share of the total; include EVERY type genuinely present, e.g. "steak and asparagus" → Meat + Vegetables; the components' calories must sum to the total; if genuinely a single type, return one component), category (the single dominant food type, same enum, for back-compat), portion (short string like "1 plate"). If the description is vague, still return your best typical estimate.`;
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -77,6 +79,37 @@ export default {
       const j = await aRes.json();
       const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
       try { await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 }); } catch (e) {} // best-effort; don't fail the call if KV writes are capped
+      return json({ text });
+    }
+
+    // --- Text nutrition estimate proxy (type a meal -> nutrition) ---
+    if (path === "/estimate" && req.method === "POST") {
+      const origin = req.headers.get("Origin") || "";
+      if (origin && !ALLOWED_ORIGINS.includes(origin)) return json({ error: "forbidden origin" }, 403);
+      const day = new Date().toISOString().slice(0, 10);
+      const cntKey = "estimate:count:" + day;
+      const cnt = parseInt((await env.SYNC.get(cntKey)) || "0", 10);
+      if (cnt >= MAX_VISION_PER_DAY) return json({ error: "daily estimate limit reached" }, 429);
+      const body = await req.json();
+      const desc = ((body.text || "") + "").slice(0, 400).trim();
+      if (!desc) return json({ error: "missing text" }, 400);
+      if (!env.ANTHROPIC_API_KEY) return json({ error: "estimate not configured" }, 503);
+      const aRes = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
+        body: JSON.stringify({
+          model: VISION_MODEL, max_tokens: 512,
+          messages: [{ role: "user", content: [{ type: "text", text: TEXT_PROMPT + "\n\nMEAL: " + desc }] }],
+        }),
+      });
+      if (!aRes.ok) {
+        let m = "estimate HTTP " + aRes.status;
+        try { const j = await aRes.json(); m = (j.error && j.error.message) || m; } catch (e) {}
+        return json({ error: m }, 502);
+      }
+      const j = await aRes.json();
+      const text = (j.content || []).filter(c => c.type === "text").map(c => c.text).join("");
+      try { await env.SYNC.put(cntKey, String(cnt + 1), { expirationTtl: 60 * 60 * 48 }); } catch (e) {}
       return json({ text });
     }
 
