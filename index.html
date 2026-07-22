@@ -555,7 +555,7 @@
   <div class="camstatus" id="camStatus"></div>
 
   <label class="fl">Food</label>
-  <input class="f" id="fName" placeholder="e.g. Greek yogurt — or 'steak and asparagus'" autocomplete="off" autocorrect="off" autocapitalize="none">
+  <input class="f" id="foodItem" name="foodItem" placeholder="e.g. Greek yogurt — or 'steak and asparagus'" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false">
   <div id="aiDescRow" style="margin-top:8px">
     <button class="btn ghost" id="aiBtn" style="width:100%">✨ Estimate</button>
     <div class="camstatus" id="aiStatus"></div>
@@ -650,7 +650,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=44;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=45;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -1046,7 +1046,7 @@ function openSheet(meal, entry){
   else { chosenCats=[]; splitEdited=false; }
   buildCats();
   if(entry){ const map={}; entryParts(entry).forEach(q=>{ if(CATS.includes(q.cat)) map[q.cat]=Math.round(+q.cal||0); }); document.querySelectorAll("#splitRow .split-in").forEach(i=>i.value=map[i.dataset.cat]||0); }
-  $("#fName").value = entry ? entry.name : "";
+  $("#foodItem").value = entry ? entry.name : "";
   $("#fCal").value  = entry ? entry.cal : "";
   $("#fPro").value  = entry && entry.pro ? entry.pro : "";
   $("#fCarb").value = entry && entry.carb ? entry.carb : "";
@@ -1133,7 +1133,7 @@ function addEntry(o){
   save(); renderToday();
 }
 $("#saveFood").onclick=()=>{
-  const name=$("#fName").value.trim();
+  const name=$("#foodItem").value.trim();
   if(!name){ toast("Add a food name"); return; }
   if($("#fCal").value.trim()===""){ toast("Add calories"); return; }
   let cats=chosenCats.slice(); if(!cats.length) cats=["Other"];
@@ -1179,7 +1179,7 @@ $("#camInput").onchange=async e=>{
 };
 // Shared: apply an AI nutrition estimate (from photo OR typed description) to the Add-food form.
 function applyEstimate(data, st){
-  $("#fName").value=data.name||"";
+  $("#foodItem").value=data.name||"";
   $("#fCal").value=data.calories!=null?Math.round(data.calories):"";
   $("#fPro").value=data.protein_g!=null?Math.round(data.protein_g):"";
   $("#fCarb").value=data.carbs_g!=null?Math.round(data.carbs_g):"";
@@ -1209,8 +1209,8 @@ async function estimateText(desc){
   return JSON.parse(m[0]);
 }
 async function runEstimate(){
-  const desc=$("#fName").value.trim();
-  if(!desc){ $("#fName").focus(); return; }
+  const desc=$("#foodItem").value.trim();
+  if(!desc){ $("#foodItem").focus(); return; }
   const st=$("#aiStatus"); st.className="camstatus"; st.textContent="Estimating with Claude…";
   $("#aiBtn").disabled=true;
   try{ applyEstimate(await estimateText(desc), st); }
