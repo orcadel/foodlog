@@ -649,8 +649,36 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ---------- on-screen error trap (build 47) ----------
+   A white screen on an installed iOS PWA is undebuggable without cabling to a Mac, so put the
+   error in the page itself. Registered before anything else so it also catches startup throws.
+   NOTE: read APP_BUILD in its own try — it's a const, so touching it before its declaration is
+   a TDZ ReferenceError, and `typeof` does NOT guard against that. */
+(function(){
+  var shown=false;
+  function show(msg){
+    if(shown) return; shown=true;
+    try{
+      var b="?"; try{ b=APP_BUILD; }catch(e){}
+      var d=document.createElement("div");
+      d.style.cssText="position:fixed;inset:0;z-index:99999;background:#fff;color:#b00020;"+
+        "font:13px/1.55 -apple-system,system-ui,sans-serif;padding:calc(24px + env(safe-area-inset-top)) 18px 24px;"+
+        "overflow:auto;white-space:pre-wrap;-webkit-user-select:text;user-select:text";
+      d.textContent="FoodLog hit an error starting up (build "+b+")\n\n"+msg+
+        "\n\nYour logged data is still saved on this device — nothing has been lost. "+
+        "Send this text to Claude.";
+      (document.body||document.documentElement).appendChild(d);
+    }catch(e){}
+  }
+  window.addEventListener("error",function(e){
+    show((e.message||"Error")+"\n"+(e.filename||"")+(e.lineno?(":"+e.lineno+":"+(e.colno||0)):""));
+  });
+  window.addEventListener("unhandledrejection",function(e){
+    var r=e.reason; show("Unhandled promise rejection:\n"+((r&&(r.stack||r.message))||String(r)));
+  });
+})();
 /* ---------- state ---------- */
-const APP_BUILD=46;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=47;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -1680,12 +1708,18 @@ if("serviceWorker" in navigator){
 }
 // keep server-side reminder prefs in sync on load (propagates new reminder types like the end-of-day log check)
 if(S.settings.reminders && S.settings.reminders.enabled) setTimeout(()=>{ refreshSubPrefs().catch(()=>{}); }, 1500);
-// self-heal: if a newer build is live, wipe caches and reload (defeats iOS PWA stale-launch caching)
+/* self-heal: if a newer build is live, reload to pick it up (defeats iOS PWA stale-launch caching).
+   Build 47: this used to delete EVERY cache and then reload. If that reload's network request
+   failed — a common cold-launch radio race on an installed iOS PWA — there was nothing left to
+   fall back on, and the app stranded on a blank screen with no JS running to recover itself.
+   The service worker is network-first, so a plain reload already fetches fresh content, and the
+   SW's activate handler prunes stale caches. Retries are capped so a server that never serves
+   the new build can't produce a reload loop. */
 fetch("version.txt?t="+Date.now(),{cache:"no-store"}).then(r=>r.ok?r.text():"0").then(v=>{
   if(parseInt((v||"0").trim(),10) > APP_BUILD){
-    (self.caches ? caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))) : Promise.resolve())
-      .then(()=>location.reload());
-  }
+    let n=0; try{ n=+(sessionStorage.getItem("fl_heal")||0); }catch(e){}
+    if(n<3){ try{ sessionStorage.setItem("fl_heal",n+1); }catch(e){} location.reload(); }
+  } else { try{ sessionStorage.removeItem("fl_heal"); }catch(e){} }
 }).catch(()=>{});
 </script>
 </body>
