@@ -126,14 +126,18 @@ export default {
       const s = body.summary || {};
       const glp1 = !!body.glp1;
       const basis = s.statBasis ?? s.daysLogged;
-      const userMsg = `User's last 7 days:
-- Logging completeness: ${s.fullDays ?? 0} of 7 days FULLY logged, ${s.partialDays ?? 0} partial/incomplete.
+      const nDays = s.daysInWindow ?? 7;                  // Mon–Sun week, capped at today for mid-week previews
+      const windowLabel = s.partialWeek
+        ? `this week so far — Monday through today, ${nDays} day${nDays === 1 ? "" : "s"} elapsed`
+        : `this week, Monday through Sunday`;
+      const userMsg = `User's ${windowLabel}:
+- Logging completeness: ${s.fullDays ?? 0} of ${nDays} days FULLY logged, ${s.partialDays ?? 0} partial/incomplete.
 - The averages below are over the fully-logged days only (${basis}); partial/incomplete days are excluded so their missing food does NOT count as a miss.
 - Avg calories: ${s.avgCal} (target ${s.calTarget})
 - Avg protein: ${s.avgPro} g (target ${s.proTarget} g; protein goal hit ${s.proHit}/${basis} fully-logged days)
 - Avg water: ${s.avgWater} oz
 - Weight change this week: ${s.wChange == null ? "n/a" : s.wChange + " lb"} (current ${s.currentWeight ?? "n/a"} lb, goal ${s.goalWeight} lb)`;
-      const sys = `You are a supportive, concrete nutrition and weight-loss coach. Given a week of the user's data, write 3-5 short sentences. START with one short sentence stating how many of the 7 days were fully logged vs partial. Then lead with what went well, then ONE specific thing to improve, then a brief encouraging close. IMPORTANT: partial/incomplete days are excluded from the stats — never treat a partial day's missing protein, water, or calories as a failure or scold about it; judge only the fully-logged days. Be specific to the numbers; no bullet points, no markdown, no preamble.${glp1 ? " The user takes a GLP-1 medication (appetite-suppressing). When relevant, add one GLP-1-aware tip — e.g. enough protein to preserve muscle, hydration, or not under-eating below their floor." : ""}`;
+      const sys = `You are a supportive, concrete nutrition and weight-loss coach. Given a week of the user's data, write 3-5 short sentences. START with one short sentence stating how many of the ${nDays} days were fully logged vs partial — use exactly that day count, never assume 7.${s.partialWeek ? " This is a mid-week preview over an incomplete week; say so briefly and do not judge the week as finished." : ""} Then lead with what went well, then ONE specific thing to improve, then a brief encouraging close. IMPORTANT: partial/incomplete days are excluded from the stats — never treat a partial day's missing protein, water, or calories as a failure or scold about it; judge only the fully-logged days. Be specific to the numbers; no bullet points, no markdown, no preamble.${glp1 ? " The user takes a GLP-1 medication (appetite-suppressing). When relevant, add one GLP-1-aware tip — e.g. enough protein to preserve muscle, hydration, or not under-eating below their floor." : ""}`;
       const aRes = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": env.ANTHROPIC_API_KEY, "anthropic-version": "2023-06-01" },
@@ -200,7 +204,16 @@ function dueReminders(prefs, tz) {
   const nowMin = (+p.hour % 24) * 60 + (+p.minute);
   const date = `${p.year}-${p.month}-${p.day}`;
   const t = prefs.times || {};
-  const tick = (hhmm) => { const x = parseHHMM(hhmm); return x != null && Math.round(x / 15) * 15 === nowMin; }; // nearest 15-min cron tick
+  // Fire on the first cron tick at/after the target's 15-minute slot. Cloudflare cron is
+  // best-effort and routinely lands a minute or two late; an exact-equality match silently
+  // drops those runs — barely noticeable daily, but fatal for a once-a-week reminder.
+  // The "fired:" dedupe key in runReminders still caps this at one send per reminder per local date.
+  // %1440 keeps 23:53–23:59 from rounding up to an unreachable 1440.
+  const tick = (hhmm) => {
+    const x = parseHHMM(hhmm); if (x == null) return false;
+    const target = (Math.round(x / 15) * 15) % 1440;
+    return nowMin >= target && nowMin < target + 15;
+  };
   const out = [];
   if (prefs.weighin && tick(t.weighin || "06:45")) out.push({ key: "weighin", title: "Morning weigh-in", body: "Log today's weight in FoodLog.", localDate: date });
   if (prefs.meals && tick(t.lunch || "12:30")) out.push({ key: "lunch", title: "Lunch check-in", body: "Don't forget to log your lunch.", localDate: date });

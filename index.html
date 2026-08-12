@@ -371,7 +371,7 @@
   <section id="view-learn" class="pane">
     <div class="card">
       <h2 class="title">Weekly insight</h2>
-      <div class="hint" style="margin:0 0 12px">An AI recap of your week — what's working and one thing to tweak.</div>
+      <div class="hint" style="margin:0 0 12px" id="insightHint">An AI recap of your week — what's working and one thing to tweak.</div>
       <button class="btn primary" id="insightBtn">✨ Show this week's insight</button>
     </div>
     <div class="card">
@@ -650,7 +650,7 @@
 
 <script>
 /* ---------- state ---------- */
-const APP_BUILD=45;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=46;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -708,6 +708,31 @@ function prettyDate(s){
   return d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
 }
 function fullDate(s){ return parseYmd(s).toLocaleDateString(undefined,{weekday:"long",month:"long",day:"numeric"}); }
+/* --- the week window ---
+   One definition of "this week" for both the Weight tab's box and the AI coach: the
+   Monday-start calendar week that weekKey() already anchors the insight cache on, capped
+   at today so a mid-week preview never counts days that haven't happened as misses.
+   Previously these walked back 7 days from *now*, which on any non-Sunday reached into the
+   previous week — that mismatch is what made the coach report "6 of 7" on a fully-logged week. */
+function weekDayIdx(s){ return (parseYmd(s).getDay()+6)%7; }               // Mon=0 … Sun=6
+function recapIdx(){
+  const names=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+  const w=(S.settings&&S.settings.reminders&&S.settings.reminders.times&&S.settings.reminders.times.weeklyDay)||"Sun";
+  const i=names.indexOf(w); return i<0?6:i;
+}
+function recapReady(){ return weekDayIdx(today())>=recapIdx(); }          // the configured recap day has arrived
+function weekWindow(){ const mon=weekKey(), n=weekDayIdx(today())+1, out=[]; for(let i=0;i<n;i++) out.push(shiftDay(mon,i)); return out; }
+/* Weight change across the same window. Anchored to the last weigh-in on or before Monday —
+   that's the weight you started the week at — so the number means something from Monday on,
+   not just once you've logged twice this week. Falls back to the first in-window weigh-in. */
+function weekWeightChange(days){
+  const w=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
+  const mon=days[0], end=days[days.length-1];
+  const inWeek=w.filter(x=>x.date>=mon&&x.date<=end);
+  const before=w.filter(x=>x.date<mon).pop();
+  const from=before||inWeek[0], to=inWeek[inWeek.length-1];
+  return (from&&to&&from.date!==to.date)? +(to.lb-from.lb).toFixed(1) : null;
+}
 
 /* ---------- rendering: TODAY ---------- */
 const $=s=>document.querySelector(s);
@@ -833,7 +858,7 @@ $("#waterMinus").onclick=()=>addWater(-8);
 function isPartialDay(d){ return (S.dayStatus&&S.dayStatus[d])==="partial"; }   // partial ONLY if you explicitly tapped "Partial"
 function isFullDay(d){ if(isPartialDay(d)) return false; return ((S.dayStatus&&S.dayStatus[d])==="full") || S.log.some(x=>x.date===d); }   // a day with logged food counts as full by default; empty unmarked days are neither (excluded)
 function renderWeekly(){
-  const days=[]; for(let i=0;i<7;i++) days.push(shiftDay(today(),-i));
+  const days=weekWindow();
   const logged=days.filter(d=>S.log.some(x=>x.date===d));
   const fullDays=days.filter(isFullDay);
   const partialDays=days.filter(isPartialDay);
@@ -844,15 +869,14 @@ function renderWeekly(){
   const avgPro=base.length? Math.round(base.reduce((a,d)=>a+dayPro(d),0)/base.length):0;
   const proHit=base.filter(d=>dayPro(d)>=S.settings.proTarget).length;
   const avgWater=base.length? Math.round(base.reduce((a,d)=>a+(S.water[d]||0),0)/base.length):0;
-  const wk=[...S.weights].filter(x=>x.date>shiftDay(today(),-8)).sort((a,b)=>a.date<b.date?-1:1);
-  const wChange=wk.length>=2 ? +(wk[wk.length-1].lb-wk[0].lb).toFixed(1) : null;
+  const wChange=weekWeightChange(days);
   const box=document.getElementById("weeklyBox"); if(!box) return;
   box.innerHTML=`<div class="calc-rows">
-    <div class="r"><span class="k">Days logged</span><span>${logged.length} / 7 · ${fullDays.length} full, ${partialDays.length} partial</span></div>
+    <div class="r"><span class="k">Days logged</span><span>${logged.length} / ${days.length} · ${fullDays.length} full, ${partialDays.length} partial</span></div>
     <div class="r"><span class="k">Avg calories</span><span>${avgCal? avgCal+" kcal":"—"}</span></div>
     <div class="r"><span class="k">Avg protein</span><span>${avgPro? avgPro+" g":"—"} · goal hit ${proHit}/${base.length||0}</span></div>
     <div class="r"><span class="k">Avg water</span><span>${avgWater} oz</span></div>
-    <div class="r"><span class="k">Weight change (7d)</span><span>${wChange==null?"—":(wChange<=0?"−":"+")+Math.abs(wChange)+" lb"}</span></div>
+    <div class="r"><span class="k">Weight change</span><span>${wChange==null?"—":(wChange<=0?"−":"+")+Math.abs(wChange)+" lb"}</span></div>
   </div>`;
 }
 let wPanOffset=0, wRange="1M";   // wRange: 1M (daily) / 3M / 6M / All (weekly averages)
@@ -963,10 +987,23 @@ function renderSettings(){
 const TAB_ORDER=["today","weight","learn","settings"];
 function currentTab(){ const on=document.querySelector("nav.tabs button.on"); return on?on.dataset.tab:"today"; }
 function anyOverlayOpen(){ return ["#addSheet","#insightWrap","#dcWrap","#onb"].some(s=>{ const el=document.querySelector(s); return el && el.classList.contains("show"); }); }
-function renderTab(t){ if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn"){ renderLearn(); generateInsight(false).catch(()=>{}); } else if(t==="settings")renderSettings(); }
+// recapReady() gate: a pre-recap-day Learn visit no longer generates (and freezes) the week's insight.
+function renderTab(t){ if(t==="today")renderToday(); else if(t==="weight")renderWeight(); else if(t==="learn"){ renderLearn(); if(recapReady()) generateInsight(false).catch(()=>{}); } else if(t==="settings")renderSettings(); }
 function paneX(i){ return -i*($("#pagerViewport").clientWidth||window.innerWidth); }
+/* Collapse a tab's accordions when you navigate away, so the tab is fresh on return.
+   Learn's .acc-body carries an inline max-height from its click handler, so the class alone
+   isn't enough — the inline value has to be cleared too. Settings' .collap-body is driven
+   purely by the .open class. */
+function collapseAccordions(exceptTab){
+  if(exceptTab!=="learn") document.querySelectorAll("#articles .acc-item.open").forEach(it=>{
+    it.classList.remove("open");
+    const b=it.querySelector(".acc-body"); if(b) b.style.maxHeight="0";
+  });
+  if(exceptTab!=="settings") document.querySelectorAll(".collap-card.open").forEach(c=>c.classList.remove("open"));
+}
 function showTab(t){
   const i=Math.max(0,TAB_ORDER.indexOf(t)); t=TAB_ORDER[i];
+  collapseAccordions(t);
   const pager=$("#pager");
   pager.style.transition="transform .26s cubic-bezier(.32,.72,0,1)";
   pager.style.transform="translateX("+paneX(i)+"px)";
@@ -1453,6 +1490,15 @@ const GLP1_ARTICLES=[
 ];
 let _articlesKey=null;
 function renderLearn(){
+  /* Weekly insight is generated once, on a finished week. Before the recap day the card says
+     so and the button becomes an explicit opt-in preview, which is marked provisional and
+     regenerated once the real recap day arrives. */
+  const names=["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+  const ready=recapReady(), hint=$("#insightHint"), ib=$("#insightBtn");
+  if(hint) hint.textContent = ready
+    ? "An AI recap of your week — what's working and one thing to tweak."
+    : "Your weekly insight is ready on "+names[recapIdx()]+", once the full week is in.";
+  if(ib) ib.textContent = ready ? "✨ Show this week's insight" : "✨ Preview the week so far";
   const box=$("#calcBox"), r=computeIntake();
   if(!r){
     box.innerHTML=`<div class="hint" style="margin:0">Add your <b>age</b> and <b>height</b> in Settings to see your personalized calorie target.</div>
@@ -1497,7 +1543,7 @@ function renderLearn(){
 /* ---------- WEEKLY INSIGHT (AI coach) ---------- */
 function weekKey(){ const d=parseYmd(today()); const dow=(d.getDay()+6)%7; d.setDate(d.getDate()-dow); return ymd(d); }
 function getWeekStats(){
-  const days=[]; for(let i=0;i<7;i++) days.push(shiftDay(today(),-i));
+  const days=weekWindow();
   const logged=days.filter(d=>S.log.some(x=>x.date===d));
   const fullDays=days.filter(isFullDay);
   const partialDays=days.filter(isPartialDay);
@@ -1508,25 +1554,31 @@ function getWeekStats(){
   const avgPro=base.length?Math.round(base.reduce((a,d)=>a+dayPro(d),0)/base.length):0;
   const proHit=base.filter(d=>dayPro(d)>=S.settings.proTarget).length;
   const avgWater=base.length?Math.round(base.reduce((a,d)=>a+(S.water[d]||0),0)/base.length):0;
-  const wk=[...S.weights].filter(x=>x.date>shiftDay(today(),-8)).sort((a,b)=>a.date<b.date?-1:1);
-  const wChange=wk.length>=2?+(wk[wk.length-1].lb-wk[0].lb).toFixed(1):null;
+  const wChange=weekWeightChange(days);
   const allW=[...S.weights].sort((a,b)=>a.date<b.date?-1:1);
-  return {daysLogged:logged.length, fullDays:fullDays.length, partialDays:partialDays.length, statBasis:base.length, avgCal, avgPro, proHit, avgWater, wChange, calTarget:S.settings.calTarget, proTarget:S.settings.proTarget, goalWeight:S.settings.goalWeight, currentWeight:allW.length?allW[allW.length-1].lb:null};
+  return {daysLogged:logged.length, fullDays:fullDays.length, partialDays:partialDays.length, statBasis:base.length, daysInWindow:days.length, partialWeek:days.length<7, avgCal, avgPro, proHit, avgWater, wChange, calTarget:S.settings.calTarget, proTarget:S.settings.proTarget, goalWeight:S.settings.goalWeight, currentWeight:allW.length?allW[allW.length-1].lb:null};
 }
 let _insightP=null, _insightPWeek=null;
 async function generateInsight(force){
-  const wk=weekKey();
-  if(!force && S.insight && S.insight.week===wk && S.insight.text) return S.insight.text;   // cached this week
-  if(!force && _insightP && _insightPWeek===wk) return _insightP;                            // share an in-flight request
+  const wk=weekKey(), ri=recapIdx(), ti=weekDayIdx(today());
+  /* A mid-week preview is PROVISIONAL: it summarised an unfinished week, so it must not
+     satisfy the cache once the recap day arrives — that stale-cache hit is exactly what
+     froze a wrong day-count for the whole week. Before the recap day any cached text is
+     fine to show; on or after it, only text generated on or after the recap day counts. */
+  const fresh = S.insight && S.insight.week===wk && S.insight.text &&
+                (ti<ri || (S.insight.genIdx!=null && S.insight.genIdx>=ri));
+  const slot = wk+":"+(ti>=ri?"final":"prov");
+  if(!force && fresh) return S.insight.text;
+  if(!force && _insightP && _insightPWeek===slot) return _insightP;                          // share an in-flight request
   const run=(async()=>{
     const r=await fetch("https://foodlog-sync.dtgruner.workers.dev/coach",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({summary:getWeekStats(), glp1:S.settings.glp1!==false})});
     if(!r.ok){ let m="HTTP "+r.status; try{const j=await r.json(); m=j.error||m;}catch(e){} if(r.status===503) m="insight service not set up yet"; throw new Error(m); }
     const j=await r.json(); const text=(j.text||"").trim();
     if(!text) throw new Error("no insight returned");
-    S.insight={text, week:wk, ts:Date.now()}; save();
+    S.insight={text, week:wk, ts:Date.now(), genIdx:ti}; save();
     return text;
   })();
-  if(!force){ _insightP=run; _insightPWeek=wk; run.finally(()=>{ if(_insightP===run){ _insightP=null; } }); }
+  if(!force){ _insightP=run; _insightPWeek=slot; run.finally(()=>{ if(_insightP===run){ _insightP=null; } }); }
   return run;
 }
 function showInsight(text){
