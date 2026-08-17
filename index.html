@@ -678,7 +678,7 @@
   });
 })();
 /* ---------- state ---------- */
-const APP_BUILD=48;   // bumped every deploy; self-heal reloads if the live version.txt is newer
+const APP_BUILD=49;   // bumped every deploy; self-heal reloads if the live version.txt is newer
 const CATS = ["Vegetables","Fruit","Meat","Grains","Dairy","Fats","Drinks","Treats","Other"];
 const CAT_EMOJI={Vegetables:"🥦",Fruit:"🍎",Meat:"🍗",Grains:"🌾",Dairy:"🥛",Fats:"🥑",Drinks:"🥤",Treats:"🍰",Other:"🍽"};
 // composite entries: an entry carries parts:[{cat,cal}] that sum to cal. Fallbacks keep old single-cat entries working.
@@ -1498,7 +1498,7 @@ const ARTICLES=[
   body:`You lose weight when you take in fewer calories than you burn over time. A deficit of about <b>500 calories a day</b> tends to produce roughly <b>1 pound of loss per week</b>. Bigger isn't better: too steep a cut costs muscle, energy, and sleep. Small, steady changes you can keep up beat crash diets.`},
  {t:"Protein: keep it a priority", link:"MedlinePlus: Dietary Proteins",
   url:"https://medlineplus.gov/dietaryproteins.html",
-  body:`In a calorie deficit your body can burn muscle alongside fat. Eating enough protein — commonly <b>~0.7-1 gram per pound of body weight</b> — with some resistance or strength training helps keep that muscle, so most of what you lose is fat. Spread it across the day: eggs or Greek yogurt early, then chicken, fish, tofu, or beans later.`},
+  body:`In a calorie deficit your body can burn muscle alongside fat. Eating enough protein — about <b>1.2-1.6 g per kg of body weight</b> (roughly <b>0.55-0.75 g per pound</b>) — together with strength training helps keep that muscle, so most of what you lose is fat. Spread it across the day: eggs or Greek yogurt early, then chicken, fish, tofu, or beans later.`},
  {t:"Fiber & vegetables for fullness", link:"Harvard: Fiber",
   url:"https://nutritionsource.hsph.harvard.edu/carbohydrates/fiber/",
   body:`Fiber-rich foods — vegetables, fruit, beans, whole grains — fill you up for very few calories and slow digestion, which smooths out hunger and blood sugar and supports healthy digestion. Aim to make vegetables the largest single part of most plates.`},
@@ -1512,19 +1512,27 @@ const ARTICLES=[
   url:"https://nutritionsource.hsph.harvard.edu/water/",
   body:`Staying hydrated supports energy, digestion, and appetite control — and it's easy to forget. Sip water steadily through the day; plain or sparkling water and other unsweetened drinks all count. A simple habit: a glass with each meal.`},
 ];
+/* Build 49: every GLP-1 card is now sourced to the 2025 joint clinical advisory
+   "Nutritional priorities to support GLP-1 therapy for obesity" — American College of
+   Lifestyle Medicine, American Society for Nutrition, Obesity Medicine Association and
+   The Obesity Society — published simultaneously in AJCN, Obesity, Obesity Pillars and
+   the Am J of Lifestyle Medicine, free full text on NIH's PMC.
+   These previously pointed at generic Harvard nutrition pages that never mention GLP-1s,
+   so the GLP-1-specific claims were unsourced. Nausea and constipation are now SEPARATE
+   cards because the advisory's fiber guidance runs in opposite directions for each. */
+const GLP1_ADVISORY="https://pmc.ncbi.nlm.nih.gov/articles/PMC12304835/";
+const GLP1_SRC="Joint advisory (ACLM/ASN/OMA/TOS)";
 const GLP1_ARTICLES=[
- {t:"On a GLP-1: eat enough", link:"Harvard: Healthy Weight",
-  url:"https://nutritionsource.hsph.harvard.edu/healthy-weight/",
-  body:`Appetite suppression makes it easy to drift <b>too low</b>. Under-eating costs muscle and energy and can stall progress. Aim for your recommended calorie floor, anchor each day with protein, and don't skip meals just because hunger is quiet.`},
- {t:"On a GLP-1: ease nausea & constipation", link:"Harvard: Fiber",
-  url:"https://nutritionsource.hsph.harvard.edu/carbohydrates/fiber/",
-  body:`For <b>nausea</b>: smaller, slower meals, stop at comfortably full, and go easy on greasy or very sweet foods. For <b>constipation</b> (common on GLP-1s): lean on fiber-rich vegetables, fruit, and beans, plus steady fluids.`},
- {t:"On a GLP-1: protect your muscle", link:"Harvard: Protein",
-  url:"https://nutritionsource.hsph.harvard.edu/what-should-you-eat/protein/",
-  body:`In a deficit your body can burn muscle along with fat. Hit roughly <b>0.7–1 g of protein per pound</b> of body weight and add some resistance training, so most of what you lose is fat, not lean mass.`},
- {t:"On a GLP-1: hydrate", link:"Harvard: Water",
-  url:"https://nutritionsource.hsph.harvard.edu/water/",
-  body:`These medications blunt thirst, so it's easy to under-drink. Sip water through the day — it supports energy and digestion and helps with constipation.`},
+ {t:"On a GLP-1: eat enough", link:GLP1_SRC, url:GLP1_ADVISORY,
+  body:`Appetite suppression makes it easy to drift <b>too low</b>. The advisory flags that below about <b>1,800 kcal a day for men</b> (1,200 for women) it gets hard to take in enough vitamins and minerals from food alone. Anchor each day with protein, eat on a schedule rather than waiting for hunger to show up, and raise a sustained low intake with your prescriber.`},
+ {t:"On a GLP-1: easing nausea", link:GLP1_SRC, url:GLP1_ADVISORY,
+  body:`<b>Smaller, more frequent meals</b>, eaten slowly, stopping at comfortably full. Go easy on fatty foods — and, in the <b>first few days after a dose increase</b>, on very high-fiber foods too. Ginger or peppermint tea can settle things. Note this points the opposite way from the constipation advice, so follow whichever symptom you actually have.`},
+ {t:"On a GLP-1: constipation", link:GLP1_SRC, url:GLP1_ADVISORY,
+  body:`Common on GLP-1s, and made worse by drinking too little. Increase fiber <b>gradually</b> — both kinds, so vegetables, beans, and prunes or other dried fruit — alongside steady fluids. Foods with high water content help things move. If diet alone isn't enough, the advisory notes fiber or magnesium supplements as a next step; check with your prescriber first.`},
+ {t:"On a GLP-1: protect your muscle", link:GLP1_SRC, url:GLP1_ADVISORY,
+  body:`In a deficit your body can burn muscle along with fat. The advisory recommends <b>1.2-1.6 g of protein per kg</b> of body weight daily (about <b>0.55-0.75 g per pound</b>) while actively losing, and cautions against sitting at or above 2 g/kg long term. Protein alone isn't enough: pair it with <b>strength training at least 3x a week</b> plus <b>150+ minutes</b> of moderate aerobic exercise.`},
+ {t:"On a GLP-1: hydrate", link:GLP1_SRC, url:GLP1_ADVISORY,
+  body:`These medications blunt thirst as well as hunger, so it's easy to under-drink without noticing. Sip water through the day — it supports energy and digestion and eases constipation. If nausea, vomiting, or diarrhea are keeping fluids down, treat that as a reason to call your prescriber rather than push through.`},
 ];
 let _articlesKey=null;
 function renderLearn(){
